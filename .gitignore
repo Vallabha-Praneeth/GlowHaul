@@ -1,0 +1,29 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# build output
+.next
+dist
+coverage
+playwright-report
+test-results
+
+# env
+.env
+.env.local
+.env.*.local
+
+# misc
+.DS_Store
+*.log
+*.tsbuildinfo
+
+# generated
+packages/supabase/types/database.ts
+
+# local supabase cli state
+supabase/.branches
+supabase/.temp
+packages/supabase/supabase/.branches
+packages/supabase/supabase/.temp

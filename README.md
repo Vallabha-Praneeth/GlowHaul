@@ -1,0 +1,68 @@
+# GlowHaul
+
+GlowHaul is the web operations and marketplace platform for Out-of-the-Box Advertising. This repository is intentionally web-first: operator, planner, and driver workflows share a single Next.js application backed by Supabase and tested with Playwright plus Chrome MCP acceptance checks.
+
+## Current Direction
+
+- App name: `GlowHaul`
+- Brand direction: dark logistics-tech UI based on the `__ui_reference/texas-truck-ops` prototype
+- Architecture: `pnpm` monorepo, Next.js App Router, Supabase, Playwright
+- Maps: free-first abstraction using MapLibre-compatible styles before any paid provider commitment
+- Auth: email + magic link first, phone OTP kept as a product-aligned placeholder flow, plus local-only demo password access for seeded test users
+
+## Planned Workspace
+
+```text
+apps/web              Next.js App Router app
+packages/config       Typed env and app configuration
+packages/core         Domain types, schemas, service boundaries
+packages/supabase     Local stack config, migrations, seeds, generated types
+packages/testing      Shared test ids, fixtures, test helpers
+packages/ui           Shared design tokens and UI building blocks
+tests/e2e             Playwright end-to-end coverage
+docs/testing          Chrome MCP smoke and acceptance checklists
+```
+
+## Local Ports
+
+- Web app: `3100`
+- Playwright base URL: `http://127.0.0.1:3100`
+- Supabase local API: `http://127.0.0.1:55421`
+- Supabase local DB: `127.0.0.1:55422`
+
+## Commands
+
+These commands are scaffolded now and become runnable after dependency installation:
+
+```bash
+pnpm install
+pnpm dev:web
+pnpm dev:web:e2e
+pnpm test:e2e
+pnpm test:e2e:chromium
+```
+
+For standalone Playwright project runs against an already-running local app server, start `pnpm dev:web:e2e` and then use:
+
+```bash
+pnpm test:e2e:setup-auth:reuse
+pnpm test:e2e:chromium:reuse
+```
+
+## Testing Model
+
+- `Playwright` is the CI-grade E2E system.
+- `Chrome MCP` is the real-browser smoke, acceptance, and debugging lane.
+- Chrome MCP never replaces automated E2E in CI.
+- Chrome MCP reports belong under `reports/smoke/`.
+
+## Manual Acceptance
+
+- Start with `pnpm test:e2e`.
+- Then run the Chrome MCP smoke flow described in [docs/testing/chrome-mcp-checklists.md](/Users/anitavallabha/led_truck_webstack/docs/testing/chrome-mcp-checklists.md).
+- Use [docs/testing/smoke-routes.md](/Users/anitavallabha/led_truck_webstack/docs/testing/smoke-routes.md) as the route matrix.
+
+## Notes
+
+- The repo intentionally does not include a mobile app or NestJS service.
+- `deep_analysis_report.md` is the current architecture and delivery baseline.
