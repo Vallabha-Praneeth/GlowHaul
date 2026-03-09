@@ -16,7 +16,7 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-16 flex items-center justify-between border-b border-border bg-card px-6 shrink-0">
+          <header className="h-14 md:h-16 flex items-center justify-between border-b border-border bg-card px-3 md:px-6 shrink-0">
             <div className="flex items-center gap-4">
               <SidebarTrigger />
               <div>
@@ -41,7 +41,7 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
               </div>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-3 md:p-6">
             {children}
           </main>
         </div>
