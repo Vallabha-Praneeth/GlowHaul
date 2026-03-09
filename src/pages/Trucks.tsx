@@ -17,7 +17,8 @@ const maintVariant = (m: string) => m === "Up to date" ? "success" : m === "Over
 const Trucks = () => (
   <DashboardLayout title="Trucks" subtitle="Fleet management and truck details">
     <div className="card-elevated overflow-hidden">
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
         <thead>
           <tr className="border-b border-border bg-secondary/30">
             {["Truck", "City", "LED Size", "Mileage", "Status", "Maintenance"].map((h) => (
