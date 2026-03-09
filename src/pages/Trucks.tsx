@@ -42,6 +42,7 @@ const Trucks = () => (
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   </DashboardLayout>
 );
