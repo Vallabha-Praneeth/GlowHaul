@@ -1,0 +1,23 @@
+import { hasSupabaseCredentials, serverEnvSchema } from '@glowhaul/config';
+
+const parsed = serverEnvSchema.parse({
+  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  AUTH_PRIMARY_METHOD: process.env.AUTH_PRIMARY_METHOD,
+  AUTH_PHONE_OTP_ENABLED: process.env.AUTH_PHONE_OTP_ENABLED,
+  AUTH_PHONE_OTP_PLACEHOLDER: process.env.AUTH_PHONE_OTP_PLACEHOLDER,
+  AUTH_PHONE_OTP_LENGTH: process.env.AUTH_PHONE_OTP_LENGTH,
+  AUTH_PHONE_OTP_EXPIRES_IN_SECONDS: process.env.AUTH_PHONE_OTP_EXPIRES_IN_SECONDS,
+  AUTH_ENFORCE_ROUTE_GUARDS: process.env.AUTH_ENFORCE_ROUTE_GUARDS,
+  NEXT_PUBLIC_MAP_PROVIDER: process.env.NEXT_PUBLIC_MAP_PROVIDER,
+  NEXT_PUBLIC_MAP_STYLE_URL: process.env.NEXT_PUBLIC_MAP_STYLE_URL,
+});
+
+export const env = parsed;
+
+export function isSupabaseConfigured() {
+  return hasSupabaseCredentials(parsed);
+}

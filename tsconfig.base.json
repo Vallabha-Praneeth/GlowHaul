@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "jsx": "preserve",
+    "baseUrl": ".",
+    "paths": {
+      "@glowhaul/config": ["packages/config/src/index.ts"],
+      "@glowhaul/core": ["packages/core/src/index.ts"],
+      "@glowhaul/testing": ["packages/testing/src/index.ts"],
+      "@glowhaul/ui": ["packages/ui/src/index.ts"]
+    }
+  }
+}

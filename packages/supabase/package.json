@@ -1,0 +1,14 @@
+{
+  "name": "@glowhaul/supabase",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "types": "supabase gen types --lang=typescript --local > types/database.ts",
+    "lint": "echo \"SQL lint not wired yet\"",
+    "typecheck": "echo \"No TypeScript in this package yet\"",
+    "test": "echo \"Supabase verification runs via CLI and app tests\""
+  }
+}
