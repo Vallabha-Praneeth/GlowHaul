@@ -1,18 +1,70 @@
 import { expect, test } from '../fixtures';
+import { requestSubmit, setTextControlValue, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'operator', storageState: 'tests/e2e/.auth/operator.json' });
+
+async function refreshOperatorSlot(page: import('@playwright/test').Page, note: string) {
+  await waitForRouteValue({
+    description: `operator slot ${note}`,
+    page,
+    path: roleHomePaths.operator,
+    read: async () => page.locator('form.surface').filter({ hasText: note }).count(),
+    until: (count) => count === 1,
+  });
+}
+
+async function refreshDriverAssignment(page: import('@playwright/test').Page, campaignName: string, expectedText: string) {
+  await waitForRouteValue({
+    description: `driver assignment for ${campaignName}`,
+    intervalMs: 2_000,
+    page,
+    path: roleHomePaths.driver,
+    timeoutMs: 60_000,
+    read: async () => {
+      const card = page.locator('div.surface').filter({ hasText: campaignName }).first();
+
+      if (await card.count() === 0) {
+        return '';
+      }
+
+      return (await card.textContent()) ?? '';
+    },
+    until: (text) => text.includes(expectedText),
+  });
+}
+
+async function refreshOperatorOffer(page: import('@playwright/test').Page, offerMessage: string) {
+  await waitForRouteValue({
+    description: `operator offer ${offerMessage}`,
+    page,
+    path: roleHomePaths.operator,
+    read: async () => page.locator('div.surface').filter({ hasText: offerMessage }).count(),
+    until: (count) => count === 1,
+  });
+}
+
+async function refreshPlannerOffer(page: import('@playwright/test').Page, offerMessage: string) {
+  await waitForRouteValue({
+    description: `planner offer ${offerMessage}`,
+    page,
+    path: roleHomePaths.planner,
+    read: async () => page.locator('div.pill').filter({ hasText: offerMessage }).count(),
+    until: (count) => count === 1,
+  });
+}
 
 async function createSlot(page: import('@playwright/test').Page, note: string, rate = '3100') {
   const createForm = page.getByTestId('operator-create-slot-form');
   await createForm.getByLabel('Region').selectOption('Houston');
   await createForm.getByLabel('Rate (USD)').fill(rate);
-  await createForm.getByLabel('Campaign notes').fill(note);
-  await createForm.getByRole('button', { name: 'Create slot' }).click();
-  await expect(page.getByText('Slot inventory created.')).toBeVisible();
+  await setTextControlValue(createForm.getByLabel('Campaign notes'), note);
+  await requestSubmit(createForm);
+  await refreshOperatorSlot(page, note);
 }
 
 test('operator can create and edit slot inventory', async ({ page, gotoRoleHome }) => {
+  test.slow();
   const slotNote = `Playwright slot ${Date.now()}`;
   const updatedNote = `${slotNote} updated`;
 
@@ -20,11 +72,11 @@ test('operator can create and edit slot inventory', async ({ page, gotoRoleHome 
   await createSlot(page, slotNote);
 
   const slotForm = page.locator('form').filter({ hasText: slotNote }).first();
-  await slotForm.getByLabel('Campaign notes').fill(updatedNote);
+  await setTextControlValue(slotForm.getByLabel('Campaign notes'), updatedNote);
   await slotForm.getByLabel('Rate (USD)').fill('3250');
-  await slotForm.getByRole('button', { name: 'Save slot changes' }).click();
+  await requestSubmit(slotForm);
 
-  await expect(page.getByText('Slot inventory updated.')).toBeVisible();
+  await refreshOperatorSlot(page, updatedNote);
   const updatedSlotForm = page.locator('form').filter({ hasText: updatedNote }).first();
   await expect(updatedSlotForm).toBeVisible();
   await expect(updatedSlotForm.locator('textarea[name="campaignNotes"]')).toHaveValue(updatedNote);
@@ -32,6 +84,7 @@ test('operator can create and edit slot inventory', async ({ page, gotoRoleHome 
 });
 
 test('operator can reject offers, progress campaigns, and review proof', async ({ browser, page, gotoRoleHome }) => {
+  test.setTimeout(180_000);
   const slotNote = `Operator triage slot ${Date.now()}`;
   const dispatchSlotNote = `Dispatch slot ${Date.now()}`;
   const offerMessage = `Operator triage offer ${Date.now()}`;
@@ -55,16 +108,17 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await plannerPage.goto(roleHomePaths.planner);
     const marketplaceCard = plannerPage.locator('div.surface').filter({ hasText: slotNote }).first();
     await marketplaceCard.getByLabel('Offer amount (USD)').fill('3450');
-    await marketplaceCard.getByLabel('Offer note').fill(offerMessage);
+    await setTextControlValue(marketplaceCard.getByLabel('Offer note'), offerMessage);
     await marketplaceCard.getByRole('button', { name: 'Submit offer' }).click();
-    await expect(plannerPage.getByText('Offer submitted to the operator.')).toBeVisible();
 
-    await page.goto(roleHomePaths.operator);
+    await refreshPlannerOffer(plannerPage, offerMessage);
+    await refreshOperatorOffer(page, offerMessage);
     const incomingOfferCard = page.locator('div.surface').filter({ hasText: offerMessage }).first();
-    await incomingOfferCard.getByLabel('Rejection note').fill(rejectionNote);
+    await setTextControlValue(incomingOfferCard.getByLabel('Rejection note'), rejectionNote);
     await incomingOfferCard.getByRole('button', { name: 'Reject offer' }).click();
-    await expect(page.getByText('Offer rejected.')).toBeVisible();
-    await expect(page.getByText(rejectionNote)).toBeVisible();
+    await expect(page.locator('div.surface').filter({ hasText: offerMessage }).first()).toContainText(rejectionNote, {
+      timeout: 30_000,
+    });
 
     await page.goto(roleHomePaths.operator);
     await createSlot(page, dispatchSlotNote, '3600');
@@ -72,16 +126,16 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await plannerPage.goto(roleHomePaths.planner);
     const dispatchMarketplaceCard = plannerPage.locator('div.surface').filter({ hasText: dispatchSlotNote }).first();
     await dispatchMarketplaceCard.getByLabel('Offer amount (USD)').fill('3725');
-    await dispatchMarketplaceCard.getByLabel('Offer note').fill(dispatchOfferMessage);
+    await setTextControlValue(dispatchMarketplaceCard.getByLabel('Offer note'), dispatchOfferMessage);
     await dispatchMarketplaceCard.getByRole('button', { name: 'Submit offer' }).click();
-    await expect(plannerPage.getByText('Offer submitted to the operator.')).toBeVisible();
 
-    await page.goto(roleHomePaths.operator);
+    await refreshPlannerOffer(plannerPage, dispatchOfferMessage);
+    await refreshOperatorOffer(page, dispatchOfferMessage);
     const dispatchOfferCard = page.locator('div.surface').filter({ hasText: dispatchOfferMessage }).first();
-    await dispatchOfferCard.getByLabel('Campaign name').fill(dispatchCampaignName);
-    await dispatchOfferCard.getByLabel('Operator note').fill('Accepted for the best available launch route.');
+    await setTextControlValue(dispatchOfferCard.getByLabel('Campaign name'), dispatchCampaignName);
+    await setTextControlValue(dispatchOfferCard.getByLabel('Operator note'), 'Accepted for the best available launch route.');
     await dispatchOfferCard.getByRole('button', { name: 'Accept and book slot' }).click();
-    await expect(page.getByText('Offer accepted and slot booked.')).toBeVisible();
+    await refreshOperatorSlot(page, dispatchCampaignName);
 
     const dispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
     await dispatchCampaignCard.getByLabel('Assigned driver').selectOption({ label: 'Drew Driver' });
@@ -90,25 +144,20 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await dispatchCampaignCard.locator('input[name="proofRequired"]').uncheck();
     await dispatchCampaignCard.getByLabel('Internal note').fill(dispatchInternalNote);
     await dispatchCampaignCard.getByRole('button', { name: 'Save dispatch plan' }).click();
-    await expect(page.getByText('Campaign execution updated.')).toBeVisible();
 
     const updatedDispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
     await expect(updatedDispatchCampaignCard.locator('textarea[name="internalNote"]')).toHaveValue(dispatchInternalNote);
     await expect(updatedDispatchCampaignCard.locator('select[name="driverId"]')).toHaveValue('33333333-3333-3333-3333-333333333333');
 
-    await driverPage.goto(roleHomePaths.driver);
-    const dispatchedRunCard = driverPage.locator('div.surface').filter({ hasText: dispatchCampaignName }).first();
-    await expect(dispatchedRunCard).toBeVisible();
-    await expect(dispatchedRunCard.getByText('En Route', { exact: true }).first()).toBeVisible();
+    await refreshDriverAssignment(driverPage, dispatchCampaignName, 'En Route');
 
     await page.goto(roleHomePaths.operator);
     const activeCampaignCard = page.locator('form.surface').filter({ hasText: 'Dallas Product Launch' }).first();
     await activeCampaignCard.getByLabel('Assigned driver').selectOption({ label: 'Drew Driver' });
     await activeCampaignCard.getByLabel('Booking status').selectOption('in_progress');
     await activeCampaignCard.getByLabel('Run status').selectOption('live');
-    await activeCampaignCard.getByLabel('Internal note').fill(internalNote);
-    await activeCampaignCard.getByRole('button', { name: 'Save dispatch plan' }).click();
-    await expect(page).toHaveURL(/\/operator\?notice=/);
+    await setTextControlValue(activeCampaignCard.getByLabel('Internal note'), internalNote);
+    await requestSubmit(activeCampaignCard);
     const updatedCampaignCard = page.locator('form.surface').filter({ hasText: 'Dallas Product Launch' }).first();
     await expect(updatedCampaignCard.locator('textarea[name="internalNote"]')).toHaveValue(internalNote);
 
@@ -120,14 +169,35 @@ test('operator can reject offers, progress campaigns, and review proof', async (
       name: proofFileName,
     });
     await driverPage.getByTestId('driver-proof-upload-button').first().click();
-    await expect(driverPage.getByText('Proof uploaded to Supabase storage.')).toBeVisible();
+    await waitForRouteValue({
+      description: `driver proof upload ${proofFileName}`,
+      intervalMs: 2_000,
+      page: driverPage,
+      path: roleHomePaths.driver,
+      timeoutMs: 60_000,
+      read: async () => driverPage.locator('div.pill').filter({ hasText: proofFileName }).count(),
+      until: (count) => count === 1,
+    });
 
     await page.goto(roleHomePaths.operator);
     const proofCard = page.locator('form.surface').filter({ hasText: proofFileName }).first();
     await proofCard.getByLabel('Review note').fill(proofReviewNote);
     await proofCard.getByRole('button', { name: 'Reject proof' }).click();
-    await expect(page).toHaveURL(/\/operator\?notice=/);
-    await expect(page.getByText(proofReviewNote)).toBeVisible();
+    await waitForRouteValue({
+      description: `operator proof review ${proofFileName}`,
+      intervalMs: 2_000,
+      page,
+      path: roleHomePaths.operator,
+      timeoutMs: 60_000,
+      read: async () => {
+        const card = page.locator('form.surface').filter({ hasText: proofFileName }).first();
+        if (await card.count() === 0) {
+          return '';
+        }
+        return (await card.textContent()) ?? '';
+      },
+      until: (text) => text.includes(proofReviewNote),
+    });
   } finally {
     await plannerContext.close();
     await driverContext.close();

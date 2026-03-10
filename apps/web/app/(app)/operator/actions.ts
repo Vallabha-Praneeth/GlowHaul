@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { Constants, type Database } from '../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
+import { rethrowRedirectError } from '../../../lib/redirect-errors';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 
 type RegionCode = Database['public']['Enums']['region_code'];
@@ -151,6 +152,7 @@ export async function createSlotInventory(formData: FormData) {
       redirect('/operator?error=' + encodeMessage(error.message));
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to create slot.'));
   }
 
@@ -225,6 +227,7 @@ export async function updateSlotInventory(formData: FormData) {
       redirect('/operator?error=' + encodeMessage(error.message));
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to save slot changes.'));
   }
 
@@ -256,6 +259,7 @@ export async function acceptPlannerOffer(formData: FormData) {
       redirect('/operator?error=' + encodeMessage(error.message));
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to accept offer.'));
   }
 
@@ -286,6 +290,7 @@ export async function rejectPlannerOffer(formData: FormData) {
       redirect('/operator?error=' + encodeMessage(error.message));
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to reject offer.'));
   }
 
@@ -420,6 +425,7 @@ export async function updateCampaignExecution(formData: FormData) {
       }
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to update campaign execution.'));
   }
 
@@ -453,6 +459,7 @@ export async function reviewDriverProof(formData: FormData) {
       redirect('/operator?error=' + encodeMessage(error.message));
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to review proof.'));
   }
 

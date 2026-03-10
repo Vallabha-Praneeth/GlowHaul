@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100';
 const shouldSkipWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER === '1';
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL ?? 'chromium';
+const usePrebuiltServer = process.env.PLAYWRIGHT_USE_PREBUILT === '1';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -24,14 +25,21 @@ export default defineConfig({
   webServer: shouldSkipWebServer
     ? undefined
     : {
-        command: 'PLAYWRIGHT_TEST=1 pnpm dev:web',
+        command: usePrebuiltServer
+          ? 'PLAYWRIGHT_TEST=1 pnpm --filter @glowhaul/web start'
+          : 'PLAYWRIGHT_TEST=1 pnpm --filter @glowhaul/web build && PLAYWRIGHT_TEST=1 pnpm --filter @glowhaul/web start',
         url: baseURL,
-        timeout: 120_000,
+        timeout: 240_000,
         reuseExistingServer: !process.env.CI,
       },
   projects: [
     {
+      name: 'setup-db',
+      testMatch: /db\.setup\.(js|ts)/,
+    },
+    {
       name: 'setup-auth',
+      dependencies: ['setup-db'],
       testMatch: /auth\.setup\.ts/,
       use: {
         ...devices['Desktop Chrome'],
@@ -41,7 +49,7 @@ export default defineConfig({
     {
       name: 'chromium',
       dependencies: ['setup-auth'],
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: /(auth|db)\.setup\.(js|ts)/,
       use: {
         ...devices['Desktop Chrome'],
         channel: browserChannel,

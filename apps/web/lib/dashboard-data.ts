@@ -119,10 +119,13 @@ export type PlannerFilterPill = {
 export type PlannerAvailableSlot = {
   bookingLabel: string | null;
   detail: string;
+  executionLabel: string | null;
   id: string;
   isActionLocked: boolean;
   message: string | null;
   operatorNote: string | null;
+  proofLabel: string | null;
+  proofTone: BadgeTone | null;
   rateDollars: string;
   status: SlotStatus;
   statusLabel: string;
@@ -134,9 +137,12 @@ export type PlannerAvailableSlot = {
 export type PlannerSubmittedOffer = {
   amountLabel: string;
   bookingLabel: string | null;
+  executionLabel: string | null;
   id: string;
   message: string | null;
   operatorNote: string | null;
+  proofLabel: string | null;
+  proofTone: BadgeTone | null;
   slotTitle: string;
   statusLabel: string;
   statusTone: BadgeTone;
@@ -249,6 +255,46 @@ function getStatusTone(status: string): BadgeTone {
 function getFileName(path: string) {
   const parts = path.split('/');
   return parts[parts.length - 1] ?? path;
+}
+
+function buildPlannerExecutionLabels(
+  booking: Pick<BookingRow, 'campaign_name' | 'status'> | null | undefined,
+  run: Pick<RunRow, 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'> | null | undefined,
+  proofs: Pick<ProofAssetRow, 'status'>[] = []
+) {
+  const latestProof = proofs[0] ?? null;
+
+  const executionLabel =
+    run
+      ? `${formatStatus(run.status)} • ${formatTimeWindow(run.scheduled_start_at, run.scheduled_end_at)}`
+      : booking
+        ? booking.status === 'confirmed'
+          ? 'Dispatch pending'
+          : `${formatStatus(booking.status)} • Awaiting run details`
+        : null;
+
+  const proofLabel =
+    latestProof
+      ? `${formatStatus(latestProof.status)} • ${formatPlural(proofs.length, 'proof')} logged`
+      : run?.proof_required
+        ? 'Proof required • Awaiting first upload'
+        : run
+          ? 'Proof optional'
+          : null;
+
+  const proofTone = latestProof
+    ? getStatusTone(latestProof.status)
+    : run?.proof_required
+      ? 'warning'
+      : run
+        ? 'success'
+        : null;
+
+  return {
+    executionLabel,
+    proofLabel,
+    proofTone,
+  };
 }
 
 function buildSlotSummary(slot: Pick<SlotRow, 'end_at' | 'rate_cents' | 'region' | 'start_at'>) {
@@ -571,7 +617,7 @@ export async function getPlannerMarketplaceData(
   }
 
   const organization = await getOrganization(profile.organization_id);
-  const [slotsResult, trucksResult, offersResult, bookingsResult] = await Promise.all([
+  const [slotsResult, trucksResult, offersResult, bookingsResult, runsResult, proofAssetsResult] = await Promise.all([
     supabase
       .from('slots')
       .select('id, truck_id, region, start_at, end_at, rate_cents, status, campaign_notes')
@@ -587,9 +633,24 @@ export async function getPlannerMarketplaceData(
       .from('bookings')
       .select('id, offer_id, slot_id, status, campaign_name, internal_note')
       .eq('planner_organization_id', profile.organization_id),
+    supabase
+      .from('runs')
+      .select('id, booking_id, scheduled_start_at, scheduled_end_at, status, proof_required')
+      .order('scheduled_start_at'),
+    supabase
+      .from('proof_assets')
+      .select('id, run_id, status, review_notes, created_at')
+      .order('created_at', { ascending: false }),
   ]);
 
-  if (slotsResult.error || trucksResult.error || offersResult.error || bookingsResult.error) {
+  if (
+    slotsResult.error ||
+    trucksResult.error ||
+    offersResult.error ||
+    bookingsResult.error ||
+    runsResult.error ||
+    proofAssetsResult.error
+  ) {
     return fallback;
   }
 
@@ -605,6 +666,14 @@ export async function getPlannerMarketplaceData(
   const bookings = (bookingsResult.data ?? []) as Pick<
     BookingRow,
     'campaign_name' | 'id' | 'internal_note' | 'offer_id' | 'slot_id' | 'status'
+  >[];
+  const runs = (runsResult.data ?? []) as Pick<
+    RunRow,
+    'booking_id' | 'id' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'
+  >[];
+  const proofAssets = (proofAssetsResult.data ?? []) as Pick<
+    ProofAssetRow,
+    'created_at' | 'id' | 'review_notes' | 'run_id' | 'status'
   >[];
 
   const truckMap = new Map(trucks.map((truck) => [truck.id, truck]));
@@ -623,6 +692,15 @@ export async function getPlannerMarketplaceData(
     bookings.filter((booking) => booking.offer_id).map((booking) => [booking.offer_id as string, booking])
   );
   const bookingBySlotId = new Map(bookings.map((booking) => [booking.slot_id, booking]));
+  const runByBookingId = new Map(runs.map((run) => [run.booking_id, run]));
+  const proofsByRunId = new Map<string, Pick<ProofAssetRow, 'created_at' | 'id' | 'review_notes' | 'run_id' | 'status'>[]>();
+
+  proofAssets.forEach((proof) => {
+    const group = proofsByRunId.get(proof.run_id) ?? [];
+    group.push(proof);
+    proofsByRunId.set(proof.run_id, group);
+  });
+
   const regions = Array.from(new Set(slots.map((slot) => slot.region)));
   const query = filters.query.trim().toLowerCase();
 
@@ -680,6 +758,9 @@ export async function getPlannerMarketplaceData(
       const truck = truckMap.get(slot.truck_id);
       const existingOffer = latestOfferBySlot.get(slot.id);
       const booking = existingOffer ? bookingByOfferId.get(existingOffer.id) : bookingBySlotId.get(slot.id);
+      const run = booking ? runByBookingId.get(booking.id) : null;
+      const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
+      const execution = buildPlannerExecutionLabels(booking, run, proofs);
       const isActionLocked =
         slot.status === 'booked' ||
         (existingOffer ? ['accepted', 'pending'].includes(existingOffer.status) : false);
@@ -687,10 +768,13 @@ export async function getPlannerMarketplaceData(
       return {
         bookingLabel: booking ? `${formatStatus(booking.status)} • ${booking.campaign_name}` : null,
         detail: buildSlotSummary(slot),
+        executionLabel: execution.executionLabel,
         id: slot.id,
         isActionLocked,
         message: slot.campaign_notes,
         operatorNote: existingOffer?.operator_note ?? booking?.internal_note ?? null,
+        proofLabel: execution.proofLabel,
+        proofTone: execution.proofTone,
         rateDollars: (slot.rate_cents / 100).toFixed(0),
         status: slot.status,
         statusLabel: formatStatus(slot.status),
@@ -710,12 +794,18 @@ export async function getPlannerMarketplaceData(
       const booking = bookingByOfferId.get(offer.id);
       const slot = slots.find((entry) => entry.id === offer.slot_id);
       const truck = slot ? truckMap.get(slot.truck_id) : null;
+      const run = booking ? runByBookingId.get(booking.id) : null;
+      const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
+      const execution = buildPlannerExecutionLabels(booking, run, proofs);
       return {
         amountLabel: formatCurrency(offer.amount_cents),
         bookingLabel: booking ? `${formatStatus(booking.status)} • ${booking.campaign_name}` : null,
+        executionLabel: execution.executionLabel,
         id: offer.id,
         message: offer.message,
         operatorNote: offer.operator_note ?? booking?.internal_note ?? null,
+        proofLabel: execution.proofLabel,
+        proofTone: execution.proofTone,
         slotTitle: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
         statusLabel: formatStatus(offer.status),
         statusTone: getStatusTone(offer.status),

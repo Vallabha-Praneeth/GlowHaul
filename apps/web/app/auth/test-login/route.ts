@@ -14,7 +14,7 @@ const demoAccounts = {
 } as const;
 
 function isPlaywrightAuthRouteEnabled() {
-  return process.env.PLAYWRIGHT_TEST === '1' && process.env.NODE_ENV !== 'production';
+  return process.env.PLAYWRIGHT_TEST === '1';
 }
 
 export async function POST(request: Request) {

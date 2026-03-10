@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import type { Database } from '../../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../../lib/auth';
+import { rethrowRedirectError } from '../../../../lib/redirect-errors';
 import { createServerSupabaseClient } from '../../../../lib/supabase/server';
 
 type OfferInsert = Database['public']['Tables']['offers']['Insert'];
@@ -105,6 +106,7 @@ export async function submitPlannerOffer(formData: FormData) {
       redirect(appendMessage(returnPath, 'error', error.message));
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect(appendMessage(returnPath, 'error', error instanceof Error ? error.message : 'Unable to submit offer.'));
   }
 

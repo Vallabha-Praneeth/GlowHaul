@@ -193,7 +193,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
         <section className="card">
           <div className="section-header">
             <h2 style={{ margin: 0 }}>My offers</h2>
-            <span className="fine">Status follows operator booking actions</span>
+            <span className="fine">Offer, dispatch, and proof visibility</span>
           </div>
           <div className="stack" style={{ marginTop: 18 }}>
             {data.submittedOffers.length > 0 ? data.submittedOffers.map((offer) => (
@@ -201,6 +201,15 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
                 <div style={{ fontWeight: 700 }}>{offer.slotTitle}</div>
                 <div className="fine">{offer.amountLabel} • {offer.statusLabel} • {offer.updatedLabel}</div>
                 {offer.bookingLabel ? <div className="fine">{offer.bookingLabel}</div> : null}
+                {offer.executionLabel ? <div className="fine">Execution: {offer.executionLabel}</div> : null}
+                {offer.proofLabel ? (
+                  <div className="fine">
+                    Proof:
+                    <span className={`badge ${offer.proofTone ?? 'warning'}`} style={{ marginLeft: 8 }}>
+                      {offer.proofLabel}
+                    </span>
+                  </div>
+                ) : null}
                 {offer.message ? <div className="fine">{offer.message}</div> : null}
                 {offer.operatorNote ? <div className="fine">Operator note: {offer.operatorNote}</div> : null}
               </div>
@@ -236,6 +245,15 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
                 <div className="fine" style={{ marginTop: 10 }}>Your latest offer status: {slot.submittedOfferStatus}</div>
               ) : null}
               {slot.bookingLabel ? <div className="fine" style={{ marginTop: 10 }}>{slot.bookingLabel}</div> : null}
+              {slot.executionLabel ? <div className="fine" style={{ marginTop: 10 }}>Execution: {slot.executionLabel}</div> : null}
+              {slot.proofLabel ? (
+                <div className="fine" style={{ marginTop: 10 }}>
+                  Proof:
+                  <span className={`badge ${slot.proofTone ?? 'warning'}`} style={{ marginLeft: 8 }}>
+                    {slot.proofLabel}
+                  </span>
+                </div>
+              ) : null}
               {slot.operatorNote ? <div className="fine" style={{ marginTop: 10 }}>Operator note: {slot.operatorNote}</div> : null}
 
               {slot.isActionLocked ? (

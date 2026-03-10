@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import type { Database } from '../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
+import { rethrowRedirectError } from '../../../lib/redirect-errors';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 
 type ProofAssetInsert = Database['public']['Tables']['proof_assets']['Insert'];
@@ -78,6 +79,7 @@ export async function uploadDriverProof(formData: FormData) {
       redirect('/driver?error=' + encodeMessage(insertError.message));
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/driver?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to upload proof.'));
   }
 
@@ -163,6 +165,7 @@ export async function updateDriverRunStatus(formData: FormData) {
       throw new Error(error.message);
     }
   } catch (error) {
+    rethrowRedirectError(error);
     redirect('/driver?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to update run status.'));
   }
 

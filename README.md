@@ -39,15 +39,33 @@ pnpm install
 pnpm dev:web
 pnpm dev:web:e2e
 pnpm test:e2e
+pnpm test:e2e:setup-db
 pnpm test:e2e:chromium
 ```
 
 For standalone Playwright project runs against an already-running local app server, start `pnpm dev:web:e2e` and then use:
 
 ```bash
+pnpm test:e2e:setup-db:reuse
 pnpm test:e2e:setup-auth:reuse
 pnpm test:e2e:chromium:reuse
 ```
+
+`pnpm test:e2e` now resets the local Supabase database and clears stored Playwright auth state before the role bootstrap runs. This keeps E2E deterministic against the seeded local stack. Set `PLAYWRIGHT_RESET_DB=0` only when you intentionally need to preserve existing local DB state.
+
+The managed Playwright web server runs the built app with `next start`, not the Next.js dev server. Reuse-mode runs can still target a manually started local server when you need interactive debugging.
+
+## CI
+
+GitHub Actions now runs the same verification lane the repo uses locally:
+
+```bash
+pnpm typecheck
+pnpm --filter @glowhaul/web build
+pnpm test:e2e
+```
+
+The workflow boots a local Supabase stack on the runner, exports the local anon and service-role keys into the job environment, installs the Chromium Playwright browser, and uploads Playwright artifacts on every run.
 
 ## Testing Model
 
