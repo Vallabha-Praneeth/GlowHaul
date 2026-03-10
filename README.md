@@ -67,6 +67,17 @@ pnpm test:e2e
 
 The workflow boots a local Supabase stack on the runner, exports the local anon and service-role keys into the job environment, installs the Chromium Playwright browser, and uploads Playwright artifacts on every run.
 
+## Deployment
+
+Hosted deployment is structured around `Vercel` plus a hosted `Supabase` project:
+
+- Vercel Preview and Production share the same app env contract.
+- `NEXT_PUBLIC_SITE_URL` is reserved for the canonical production URL.
+- Preview auth redirects resolve from the active Vercel deployment host.
+- Supabase Auth should keep production `Site URL` exact and allow preview redirects with the Vercel wildcard pattern.
+
+Use [docs/deployment/vercel-hosted-supabase.md](/Users/anitavallabha/led_truck_webstack/docs/deployment/vercel-hosted-supabase.md) as the deployment source of truth.
+
 ## Testing Model
 
 - `Playwright` is the CI-grade E2E system.

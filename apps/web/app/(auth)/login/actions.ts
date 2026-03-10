@@ -3,7 +3,8 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { env, isSupabaseConfigured } from '../../../lib/env';
+import { isSupabaseConfigured } from '../../../lib/env';
+import { getAppOrigin } from '../../../lib/site-url';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 
 const magicLinkSchema = z.object({
@@ -39,7 +40,7 @@ export async function requestMagicLink(formData: FormData) {
 
   const nextPath = normalizeNextPath(parsed.data.next);
   const headerStore = await headers();
-  const origin = headerStore.get('origin') ?? env.NEXT_PUBLIC_APP_URL;
+  const origin = getAppOrigin(headerStore);
   const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.auth.signInWithOtp({

@@ -2,6 +2,7 @@ import { hasSupabaseCredentials, serverEnvSchema } from '@glowhaul/config';
 
 const parsed = serverEnvSchema.parse({
   NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
+  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -14,6 +15,10 @@ const parsed = serverEnvSchema.parse({
   AUTH_ENFORCE_ROUTE_GUARDS: process.env.AUTH_ENFORCE_ROUTE_GUARDS,
   NEXT_PUBLIC_MAP_PROVIDER: process.env.NEXT_PUBLIC_MAP_PROVIDER,
   NEXT_PUBLIC_MAP_STYLE_URL: process.env.NEXT_PUBLIC_MAP_STYLE_URL,
+  VERCEL_ENV: process.env.VERCEL_ENV,
+  VERCEL_URL: process.env.VERCEL_URL,
+  VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
+  VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
 });
 
 export const env = parsed;
