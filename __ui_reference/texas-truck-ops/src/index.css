@@ -1,0 +1,346 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* QuantumOps Design System - LED Truck Marketplace */
+
+@layer base {
+  :root {
+    /* Base dark theme for logistics-tech feel */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Electric cyan primary for tech accent */
+    --primary: 187 100% 50%;
+    --primary-foreground: 222 47% 6%;
+
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 222 30% 15%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 187 100% 50%;
+    --accent-foreground: 222 47% 6%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 30% 20%;
+    --input: 222 30% 15%;
+    --ring: 187 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Status Colors - Operational States */
+    --status-available: 142 76% 45%;
+    --status-available-bg: 142 76% 15%;
+    --status-offered: 38 92% 50%;
+    --status-offered-bg: 38 92% 15%;
+    --status-booked: 217 91% 60%;
+    --status-booked-bg: 217 91% 15%;
+    --status-running: 270 91% 65%;
+    --status-running-bg: 270 91% 15%;
+    --status-completed: 215 16% 47%;
+    --status-completed-bg: 215 16% 15%;
+    --status-cancelled: 0 72% 51%;
+    --status-cancelled-bg: 0 72% 15%;
+
+    /* Texas Regions */
+    --region-dfw: 217 91% 60%;
+    --region-houston: 38 92% 50%;
+    --region-austin: 142 76% 45%;
+    --region-sanantonio: 270 91% 65%;
+    --region-elpaso: 0 72% 51%;
+    --region-rgv: 187 100% 50%;
+
+    /* Gradient definitions */
+    --gradient-primary: linear-gradient(135deg, hsl(187 100% 50%), hsl(217 91% 60%));
+    --gradient-card: linear-gradient(180deg, hsl(222 47% 11%), hsl(222 47% 8%));
+    --gradient-hero: linear-gradient(135deg, hsl(222 47% 6%), hsl(222 47% 12%));
+
+    /* Shadows */
+    --shadow-sm: 0 2px 8px -2px hsl(0 0% 0% / 0.4);
+    --shadow-md: 0 4px 16px -4px hsl(0 0% 0% / 0.5);
+    --shadow-lg: 0 8px 32px -8px hsl(0 0% 0% / 0.6);
+    --shadow-glow: 0 0 20px -5px hsl(187 100% 50% / 0.4);
+
+    /* Sidebar (keeping for compatibility) */
+    --sidebar-background: 222 47% 9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 187 100% 50%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 222 30% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 30% 20%;
+    --sidebar-ring: 187 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.5);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.7);
+  }
+}
+
+@layer components {
+  /* Mobile container */
+  .mobile-container {
+    @apply max-w-md mx-auto min-h-screen bg-background relative;
+  }
+
+  /* Screen padding */
+  .screen-padding {
+    @apply px-4 pb-24 pt-4;
+  }
+
+  /* Card with gradient */
+  .card-gradient {
+    background: var(--gradient-card);
+    @apply border border-border rounded-xl;
+  }
+
+  /* Glow effect for primary elements */
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Status badge base */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  /* Status badge variants */
+  .status-available {
+    @apply bg-[hsl(var(--status-available-bg))] text-[hsl(var(--status-available))];
+  }
+
+  .status-offered {
+    @apply bg-[hsl(var(--status-offered-bg))] text-[hsl(var(--status-offered))];
+  }
+
+  .status-booked {
+    @apply bg-[hsl(var(--status-booked-bg))] text-[hsl(var(--status-booked))];
+  }
+
+  .status-running {
+    @apply bg-[hsl(var(--status-running-bg))] text-[hsl(var(--status-running))];
+  }
+
+  .status-completed {
+    @apply bg-[hsl(var(--status-completed-bg))] text-[hsl(var(--status-completed))];
+  }
+
+  .status-cancelled {
+    @apply bg-[hsl(var(--status-cancelled-bg))] text-[hsl(var(--status-cancelled))];
+  }
+
+  /* Region chips */
+  .region-chip {
+    @apply inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground;
+  }
+
+  /* Large tap target button */
+  .tap-target {
+    @apply min-h-[48px] min-w-[48px] flex items-center justify-center;
+  }
+
+  /* Pulse animation for available status */
+  .pulse-available {
+    @apply relative;
+  }
+
+  .pulse-available::before {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-[hsl(var(--status-available))] opacity-50;
+    animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+  }
+
+  /* KPI card */
+  .kpi-card {
+    @apply p-4 rounded-xl bg-secondary/50 border border-border;
+  }
+
+  /* Bottom nav */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-lg border-t border-border;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .bottom-nav-item {
+    @apply flex flex-col items-center justify-center gap-1 py-2 px-3 text-muted-foreground transition-colors;
+  }
+
+  .bottom-nav-item.active {
+    @apply text-primary;
+  }
+
+  /* Timeline for booking status */
+  .timeline-dot {
+    @apply w-3 h-3 rounded-full bg-primary relative z-10;
+  }
+
+  .timeline-dot.completed {
+    @apply bg-[hsl(var(--status-completed))];
+  }
+
+  .timeline-dot.active {
+    @apply bg-primary;
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.2);
+  }
+
+  .timeline-line {
+    @apply absolute left-1.5 top-3 w-0.5 h-full bg-border -translate-x-1/2;
+  }
+
+  /* Map placeholder */
+  .map-placeholder {
+    @apply bg-secondary/30 rounded-xl overflow-hidden relative;
+    background-image: 
+      linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px),
+      linear-gradient(hsl(var(--border)) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+
+  /* Empty state */
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-12 text-center;
+  }
+
+  /* Floating action button */
+  .fab {
+    @apply fixed bottom-24 right-4 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg;
+    box-shadow: var(--shadow-glow);
+  }
+}
+
+@layer utilities {
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  /* Safe area padding */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Keyframe animations */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out forwards;
+}
+
+.animate-slide-in-bottom {
+  animation: slide-in-bottom 0.3s ease-out forwards;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Mapbox popup customization */
+.mapboxgl-popup-content {
+  @apply bg-card border border-border rounded-xl shadow-lg p-0 !important;
+  background: hsl(var(--card)) !important;
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: hsl(var(--card)) !important;
+}
+
+.mapboxgl-popup-close-button {
+  @apply text-muted-foreground hover:text-foreground text-xl w-8 h-8 flex items-center justify-center;
+}
+
+.mapboxgl-ctrl-group {
+  @apply bg-card border-border !important;
+}
+
+.mapboxgl-ctrl-group button {
+  @apply text-foreground !important;
+}
+
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}

@@ -1,73 +1,86 @@
-# Welcome to your Lovable project
+# GlowHaul
 
-## Project info
+GlowHaul is the web operations and marketplace platform for Out-of-the-Box Advertising. This repository is intentionally web-first: operator, planner, and driver workflows share a single Next.js application backed by Supabase and tested with Playwright plus Chrome MCP acceptance checks.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Current Direction
 
-## How can I edit this code?
+- App name: `GlowHaul`
+- Brand direction: dark logistics-tech UI based on the `__ui_reference/texas-truck-ops` prototype
+- Architecture: `pnpm` monorepo, Next.js App Router, Supabase, Playwright
+- Maps: free-first abstraction using MapLibre-compatible styles before any paid provider commitment
+- Auth: email + magic link first, phone OTP kept as a product-aligned placeholder flow, plus local-only demo password access for seeded test users
 
-There are several ways of editing your application.
+## Planned Workspace
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```text
+apps/web              Next.js App Router app
+packages/config       Typed env and app configuration
+packages/core         Domain types, schemas, service boundaries
+packages/supabase     Local stack config, migrations, seeds, generated types
+packages/testing      Shared test ids, fixtures, test helpers
+packages/ui           Shared design tokens and UI building blocks
+tests/e2e             Playwright end-to-end coverage
+docs/testing          Chrome MCP smoke and acceptance checklists
 ```
 
-**Edit a file directly in GitHub**
+## Local Ports
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- Web app: `3100`
+- Playwright base URL: `http://127.0.0.1:3100`
+- Supabase local API: `http://127.0.0.1:55421`
+- Supabase local DB: `127.0.0.1:55422`
 
-**Use GitHub Codespaces**
+## Commands
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+These commands are scaffolded now and become runnable after dependency installation:
 
-## What technologies are used for this project?
+```bash
+pnpm install
+pnpm dev:web
+pnpm dev:web:e2e
+pnpm test:e2e
+pnpm test:e2e:setup-db
+pnpm test:e2e:chromium
+```
 
-This project is built with:
+For standalone Playwright project runs against an already-running local app server, start `pnpm dev:web:e2e` and then use:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```bash
+pnpm test:e2e:setup-db:reuse
+pnpm test:e2e:setup-auth:reuse
+pnpm test:e2e:chromium:reuse
+```
 
-## How can I deploy this project?
+`pnpm test:e2e` now resets the local Supabase database and clears stored Playwright auth state before the role bootstrap runs. This keeps E2E deterministic against the seeded local stack. Set `PLAYWRIGHT_RESET_DB=0` only when you intentionally need to preserve existing local DB state.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+The managed Playwright web server runs the built app with `next start`, not the Next.js dev server. Reuse-mode runs can still target a manually started local server when you need interactive debugging.
 
-## Can I connect a custom domain to my Lovable project?
+## CI
 
-Yes, you can!
+GitHub Actions now runs the same verification lane the repo uses locally:
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```bash
+pnpm typecheck
+pnpm --filter @glowhaul/web build
+pnpm test:e2e
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+The workflow boots a local Supabase stack on the runner, exports the local anon and service-role keys into the job environment, installs the Chromium Playwright browser, and uploads Playwright artifacts on every run.
+
+## Testing Model
+
+- `Playwright` is the CI-grade E2E system.
+- `Chrome MCP` is the real-browser smoke, acceptance, and debugging lane.
+- Chrome MCP never replaces automated E2E in CI.
+- Chrome MCP reports belong under `reports/smoke/`.
+
+## Manual Acceptance
+
+- Start with `pnpm test:e2e`.
+- Then run the Chrome MCP smoke flow described in [docs/testing/chrome-mcp-checklists.md](/Users/anitavallabha/led_truck_webstack/docs/testing/chrome-mcp-checklists.md).
+- Use [docs/testing/smoke-routes.md](/Users/anitavallabha/led_truck_webstack/docs/testing/smoke-routes.md) as the route matrix.
+
+## Notes
+
+- The repo intentionally does not include a mobile app or NestJS service.
+- `deep_analysis_report.md` is the current architecture and delivery baseline.
