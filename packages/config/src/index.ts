@@ -65,7 +65,9 @@ function normalizeUrlCandidate(candidate: string) {
     return trimTrailingSlash(trimmed);
   }
 
-  const isLocalHost = /^localhost(?::\d+)?$/i.test(trimmed) || /^127(?:\.\d{1,3}){3}(?::\d+)?$/.test(trimmed);
+  const isLocalHost =
+    /^localhost(?::\d+)?$/i.test(trimmed) ||
+    /^127(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}(?::\d+)?$/.test(trimmed);
   const protocol = isLocalHost ? 'http' : 'https';
   return `${protocol}://${trimmed}`;
 }

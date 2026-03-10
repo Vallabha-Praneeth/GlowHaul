@@ -76,7 +76,7 @@ Hosted deployment is structured around `Vercel` plus a hosted `Supabase` project
 - Preview auth redirects resolve from the active Vercel deployment host.
 - Supabase Auth should keep production `Site URL` exact and allow preview redirects with the Vercel wildcard pattern.
 
-Use [docs/deployment/vercel-hosted-supabase.md](/Users/anitavallabha/led_truck_webstack/docs/deployment/vercel-hosted-supabase.md) as the deployment source of truth.
+Use [docs/deployment/vercel-hosted-supabase.md](docs/deployment/vercel-hosted-supabase.md) as the deployment source of truth.
 
 ## Testing Model
 
