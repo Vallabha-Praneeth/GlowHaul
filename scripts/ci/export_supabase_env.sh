@@ -2,9 +2,17 @@
 set -euo pipefail
 
 OUTPUT_FILE="${1:-${GITHUB_ENV:-}}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+SUPABASE_DIR="${REPO_ROOT}/packages/supabase"
 
 if [[ -z "${OUTPUT_FILE}" ]]; then
   echo "Provide an output file path or set GITHUB_ENV." >&2
+  exit 1
+fi
+
+if [[ ! -f "${SUPABASE_DIR}/supabase/config.toml" ]]; then
+  echo "Could not find Supabase config at ${SUPABASE_DIR}/supabase/config.toml." >&2
   exit 1
 fi
 
@@ -18,7 +26,7 @@ strip_quotes() {
   printf '%s' "${value}"
 }
 
-status_env="$(supabase status -o env)"
+status_env="$(cd "${SUPABASE_DIR}" && supabase status -o env)"
 
 api_url=""
 anon_key=""
