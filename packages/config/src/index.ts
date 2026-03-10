@@ -6,7 +6,7 @@ const optionalUrlSchema = z
   .transform((value) => (value ? value : undefined));
 
 const optionalHostSchema = z
-  .union([z.string(), z.literal('')])
+  .string()
   .optional()
   .transform((value) => (value ? value : undefined));
 
