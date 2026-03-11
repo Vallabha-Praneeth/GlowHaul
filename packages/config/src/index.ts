@@ -131,8 +131,10 @@ export function resolveAppUrl(input: AppUrlResolutionInput) {
   }
 
   if (input.forwardedHost) {
-    const proto = input.forwardedProto?.trim().toLowerCase() === 'http' ? 'http' : 'https';
-    const fromForwardedHost = normalizeUrlCandidate(`${proto}://${input.forwardedHost}`);
+    const proto = input.forwardedProto?.trim().toLowerCase();
+    const forwardedCandidate =
+      proto === 'http' || proto === 'https' ? `${proto}://${input.forwardedHost}` : input.forwardedHost;
+    const fromForwardedHost = normalizeUrlCandidate(forwardedCandidate);
     if (fromForwardedHost) {
       return fromForwardedHost;
     }

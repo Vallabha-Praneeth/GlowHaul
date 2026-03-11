@@ -64,6 +64,15 @@ test('resolveAppUrl validates forwarded host and proto before using them', () =>
 
   assert.equal(
     resolveAppUrl({
+      forwardedHost: '127.0.0.1:3100',
+      NEXT_PUBLIC_SITE_URL: 'https://glow-haul.vercel.app',
+      NEXT_PUBLIC_APP_URL: 'http://127.0.0.1:3100',
+    }),
+    'http://127.0.0.1:3100'
+  );
+
+  assert.equal(
+    resolveAppUrl({
       forwardedHost: 'preview-123.vercel.app,proxy.local',
       forwardedProto: 'https',
       NEXT_PUBLIC_SITE_URL: 'https://glow-haul.vercel.app',
