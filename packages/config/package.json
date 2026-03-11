@@ -8,7 +8,7 @@
     "build": "tsc --project tsconfig.json",
     "lint": "echo \"Config lint not wired yet\"",
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "echo \"No config tests yet\""
+    "test": "tsc --project tsconfig.test.json && node --test .tmp-test/index.test.js"
   },
   "dependencies": {
     "zod": "^4.1.5"

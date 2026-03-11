@@ -51,23 +51,59 @@ export function hasSupabaseCredentials(env: Pick<ServerEnv, 'NEXT_PUBLIC_SUPABAS
   );
 }
 
-function trimTrailingSlash(url: string) {
+const LOCAL_HOST_PATTERN =
+  /^(?:localhost|127(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3})(?::\d+)?$/i;
+const DNS_HOST_PATTERN =
+  /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?::\d+)?$/i;
+
+function isAllowedHost(candidate: string) {
+  return LOCAL_HOST_PATTERN.test(candidate) || DNS_HOST_PATTERN.test(candidate);
+}
+
+/**
+ * Remove a terminal slash so origin-like values normalize to a stable shape.
+ */
+export function trimTrailingSlash(url: string) {
   return url.endsWith('/') ? url.slice(0, -1) : url;
 }
 
-function normalizeUrlCandidate(candidate: string) {
+/**
+ * Convert trusted env/header candidates into a normalized base URL or reject them.
+ */
+export function normalizeUrlCandidate(candidate: string) {
   const trimmed = candidate.trim();
-  if (!trimmed) {
+  if (!trimmed || /[\s,]/.test(trimmed)) {
+    return null;
+  }
+
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'null' || lowered === 'undefined') {
     return null;
   }
 
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimTrailingSlash(trimmed);
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return null;
+      }
+
+      if (!isAllowedHost(parsed.host)) {
+        return null;
+      }
+
+      return trimTrailingSlash(parsed.toString());
+    } catch {
+      return null;
+    }
   }
 
-  const isLocalHost =
-    /^localhost(?::\d+)?$/i.test(trimmed) ||
-    /^127(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}(?::\d+)?$/.test(trimmed);
+  const isLocalHost = LOCAL_HOST_PATTERN.test(trimmed);
+  const isDnsHost = DNS_HOST_PATTERN.test(trimmed);
+  if (!isLocalHost && !isDnsHost) {
+    return null;
+  }
+
   const protocol = isLocalHost ? 'http' : 'https';
   return `${protocol}://${trimmed}`;
 }
@@ -95,8 +131,11 @@ export function resolveAppUrl(input: AppUrlResolutionInput) {
   }
 
   if (input.forwardedHost) {
-    const proto = input.forwardedProto || 'https';
-    return trimTrailingSlash(`${proto}://${input.forwardedHost}`);
+    const proto = input.forwardedProto?.trim().toLowerCase() === 'http' ? 'http' : 'https';
+    const fromForwardedHost = normalizeUrlCandidate(`${proto}://${input.forwardedHost}`);
+    if (fromForwardedHost) {
+      return fromForwardedHost;
+    }
   }
 
   const preferredUrl =
