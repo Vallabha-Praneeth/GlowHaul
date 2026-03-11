@@ -18,7 +18,7 @@ Playwright is the deterministic end-to-end test system for GlowHaul. It is the C
 - Planner marketplace shell renders
 - Driver shell renders
 
-## Expansion Path
+## Planned Expansion Path
 
 - Add seeded auth state per role
 - Add mutation coverage for slots, offers, bookings, and proof uploads
@@ -48,6 +48,7 @@ Playwright is the deterministic end-to-end test system for GlowHaul. It is the C
   - `VERCEL_PROJECT_ID`
   - `VERCEL_TEAM_ID`
   - `VERCEL_TOKEN`
+- reproduce the hosted lane locally with `PLAYWRIGHT_BASE_URL`, `HOSTED_SUPABASE_URL`, and `HOSTED_SUPABASE_SERVICE_ROLE_KEY`, then run `pnpm test:e2e:hosted`
 
 ## Relationship To Chrome MCP
 

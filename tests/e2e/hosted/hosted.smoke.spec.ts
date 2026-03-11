@@ -36,6 +36,6 @@ test.describe('hosted driver smoke', () => {
     await expect(page.getByText('Drew Driver', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Execute runs without call-chain chaos.' })).toBeVisible();
     await expect(page.getByText('Proof review pending')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Mark en route' })).toBeVisible();
+    await expect(page.getByTestId('driver-action-en_route')).toBeVisible();
   });
 });

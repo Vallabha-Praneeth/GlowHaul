@@ -83,8 +83,11 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Assigned runs</h2>
             <div className="stack">
-              {data.assignedRuns.length > 0 ? data.assignedRuns.map((run) => (
-                <div className="surface" key={run.id} style={{ padding: 18 }}>
+              {data.assignedRuns.length > 0 ? data.assignedRuns.map((run) => {
+                const nextAction = getNextRunAction(run.runStatus);
+
+                return (
+                  <div className="surface" key={run.id} style={{ padding: 18 }}>
                   <div className="section-header">
                     <div>
                       <div style={{ fontWeight: 700 }}>{run.title}</div>
@@ -107,14 +110,18 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                     <div className="fine" style={{ marginTop: 6 }}>Review note: {run.latestProofReviewNotes}</div>
                   ) : null}
 
-                  {getNextRunAction(run.runStatus) ? (
+                  {nextAction ? (
                     <form action={updateDriverRunStatus} className="stack" style={{ marginTop: 14 }}>
                       <input name="runId" type="hidden" value={run.id} />
-                      <input name="nextStatus" type="hidden" value={getNextRunAction(run.runStatus)?.value} />
+                      <input name="nextStatus" type="hidden" value={nextAction.value} />
                       <div className="pill" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span>{getNextRunAction(run.runStatus)?.description}</span>
-                        <button className="button-secondary" data-testid="driver-run-status-button" type="submit">
-                          {getNextRunAction(run.runStatus)?.label}
+                        <span>{nextAction.description}</span>
+                        <button
+                          className="button-secondary"
+                          data-testid={`driver-action-${nextAction.value}`}
+                          type="submit"
+                        >
+                          {nextAction.label}
                         </button>
                       </div>
                     </form>
@@ -146,8 +153,9 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                       Upload proof
                     </button>
                   </form>
-                </div>
-              )) : (
+                  </div>
+                );
+              }) : (
                 <div className="fine">No assigned runs are currently available for this driver.</div>
               )}
             </div>

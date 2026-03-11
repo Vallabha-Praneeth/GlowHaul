@@ -10,29 +10,47 @@ for (const name of requiredEnv) {
 const apiBase = 'https://api.vercel.com/v6/deployments';
 const maxAttempts = Number(process.env.VERCEL_DEPLOYMENT_POLL_ATTEMPTS ?? '40');
 const sleepMs = Number(process.env.VERCEL_DEPLOYMENT_POLL_INTERVAL_MS ?? '15000');
+const fetchRetryAttempts = Number(process.env.VERCEL_DEPLOYMENT_FETCH_RETRY_ATTEMPTS ?? '5');
+const fetchRetryBaseSleepMs = Number(process.env.VERCEL_DEPLOYMENT_FETCH_RETRY_BASE_MS ?? '1000');
 
 function sleep(timeout) {
   return new Promise((resolve) => setTimeout(resolve, timeout));
 }
 
 async function fetchDeployments() {
-  const url = new URL(apiBase);
-  url.searchParams.set('projectId', process.env.VERCEL_PROJECT_ID);
-  url.searchParams.set('teamId', process.env.VERCEL_TEAM_ID);
-  url.searchParams.set('target', 'production');
-  url.searchParams.set('limit', '20');
+  for (let attempt = 1; attempt <= fetchRetryAttempts; attempt += 1) {
+    const url = new URL(apiBase);
+    url.searchParams.set('projectId', process.env.VERCEL_PROJECT_ID);
+    url.searchParams.set('teamId', process.env.VERCEL_TEAM_ID);
+    url.searchParams.set('target', 'production');
+    url.searchParams.set('limit', '20');
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
-    },
-  });
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+        },
+      });
 
-  if (!response.ok) {
-    throw new Error(`Vercel deployment lookup failed: ${response.status} ${await response.text()}`);
+      if (response.ok) {
+        return response.json();
+      }
+
+      if (response.status !== 429 && response.status < 500) {
+        throw new Error(`Vercel deployment lookup failed: ${response.status} ${await response.text()}`);
+      }
+    } catch (error) {
+      if (attempt === fetchRetryAttempts) {
+        throw error;
+      }
+    }
+
+    if (attempt < fetchRetryAttempts) {
+      await sleep(fetchRetryBaseSleepMs * 2 ** (attempt - 1));
+    }
   }
 
-  return response.json();
+  throw new Error(`Vercel deployment lookup failed after ${fetchRetryAttempts} retry attempts.`);
 }
 
 function selectDeployment(payload) {
