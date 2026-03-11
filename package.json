@@ -20,6 +20,7 @@
     "test:e2e:setup-auth": "playwright test --project=setup-auth",
     "test:e2e:setup-auth:reuse": "PLAYWRIGHT_SKIP_WEBSERVER=1 playwright test --project=setup-auth",
     "test:e2e:chrome": "PLAYWRIGHT_BROWSER_CHANNEL=chrome playwright test --project=chromium",
+    "test:e2e:hosted": "PLAYWRIGHT_HOSTED_SMOKE=1 PLAYWRIGHT_SKIP_WEBSERVER=1 playwright test --project=hosted-chromium",
     "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {

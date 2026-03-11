@@ -1,0 +1,64 @@
+const requiredEnv = ['VERCEL_TOKEN', 'VERCEL_PROJECT_ID', 'VERCEL_TEAM_ID', 'TARGET_SHA'];
+
+for (const name of requiredEnv) {
+  if (!process.env[name]) {
+    console.error(`${name} is required.`);
+    process.exit(1);
+  }
+}
+
+const apiBase = 'https://api.vercel.com/v6/deployments';
+const maxAttempts = Number(process.env.VERCEL_DEPLOYMENT_POLL_ATTEMPTS ?? '40');
+const sleepMs = Number(process.env.VERCEL_DEPLOYMENT_POLL_INTERVAL_MS ?? '15000');
+
+function sleep(timeout) {
+  return new Promise((resolve) => setTimeout(resolve, timeout));
+}
+
+async function fetchDeployments() {
+  const url = new URL(apiBase);
+  url.searchParams.set('projectId', process.env.VERCEL_PROJECT_ID);
+  url.searchParams.set('teamId', process.env.VERCEL_TEAM_ID);
+  url.searchParams.set('target', 'production');
+  url.searchParams.set('limit', '20');
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Vercel deployment lookup failed: ${response.status} ${await response.text()}`);
+  }
+
+  return response.json();
+}
+
+function selectDeployment(payload) {
+  return (payload.deployments ?? []).find(
+    (deployment) => deployment.target === 'production' && deployment.meta?.githubCommitSha === process.env.TARGET_SHA
+  );
+}
+
+for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  const payload = await fetchDeployments();
+  const deployment = selectDeployment(payload);
+
+  if (deployment) {
+    if (deployment.readyState === 'READY' || deployment.state === 'READY') {
+      process.stdout.write(`https://${deployment.url}`);
+      process.exit(0);
+    }
+
+    if (deployment.readyState === 'ERROR' || deployment.state === 'ERROR') {
+      console.error(`Deployment ${deployment.uid} failed.`);
+      process.exit(1);
+    }
+  }
+
+  await sleep(sleepMs);
+}
+
+console.error(`Timed out waiting for production deployment for commit ${process.env.TARGET_SHA}.`);
+process.exit(1);
