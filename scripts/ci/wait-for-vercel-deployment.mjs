@@ -12,6 +12,7 @@ const maxAttempts = Number(process.env.VERCEL_DEPLOYMENT_POLL_ATTEMPTS ?? '40');
 const sleepMs = Number(process.env.VERCEL_DEPLOYMENT_POLL_INTERVAL_MS ?? '15000');
 const fetchRetryAttempts = Number(process.env.VERCEL_DEPLOYMENT_FETCH_RETRY_ATTEMPTS ?? '5');
 const fetchRetryBaseSleepMs = Number(process.env.VERCEL_DEPLOYMENT_FETCH_RETRY_BASE_MS ?? '1000');
+const fetchTimeoutMs = Number(process.env.VERCEL_DEPLOYMENT_FETCH_TIMEOUT_MS ?? '10000');
 
 function sleep(timeout) {
   return new Promise((resolve) => setTimeout(resolve, timeout));
@@ -26,11 +27,14 @@ async function fetchDeployments() {
     url.searchParams.set('limit', '20');
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
       const response = await fetch(url, {
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
         },
-      });
+      }).finally(() => clearTimeout(timeout));
 
       if (response.ok) {
         return response.json();
@@ -59,8 +63,20 @@ function selectDeployment(payload) {
   );
 }
 
+let lastLookupError;
+
 for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-  const payload = await fetchDeployments();
+  let payload;
+
+  try {
+    payload = await fetchDeployments();
+    lastLookupError = undefined;
+  } catch (error) {
+    lastLookupError = error;
+    await sleep(sleepMs);
+    continue;
+  }
+
   const deployment = selectDeployment(payload);
 
   if (deployment) {
@@ -76,6 +92,11 @@ for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
   }
 
   await sleep(sleepMs);
+}
+
+if (lastLookupError) {
+  console.error(`Timed out waiting for production deployment for commit ${process.env.TARGET_SHA}: ${lastLookupError}`);
+  process.exit(1);
 }
 
 console.error(`Timed out waiting for production deployment for commit ${process.env.TARGET_SHA}.`);

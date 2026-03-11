@@ -165,7 +165,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
       </section>
 
       <div className="card-grid">
-        <section className="card">
+        <section className="card" data-testid="planner-submitted-offers">
           <div className="section-header">
             <h2 style={{ margin: 0 }}>Map</h2>
             <span className="fine">Provider abstracted</span>
@@ -195,9 +195,9 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
             <h2 style={{ margin: 0 }}>My offers</h2>
             <span className="fine">Offer, dispatch, and proof visibility</span>
           </div>
-          <div className="stack" style={{ marginTop: 18 }}>
+          <div className="stack" data-testid="planner-submitted-offers-list" style={{ marginTop: 18 }}>
             {data.submittedOffers.length > 0 ? data.submittedOffers.map((offer) => (
-              <div className="pill" key={offer.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
+              <div className="pill" data-testid={`planner-submitted-offer-${offer.id}`} key={offer.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
                 <div style={{ fontWeight: 700 }}>{offer.slotTitle}</div>
                 <div className="fine">{offer.amountLabel} • {offer.statusLabel} • {offer.updatedLabel}</div>
                 {offer.bookingLabel ? <div className="fine">{offer.bookingLabel}</div> : null}

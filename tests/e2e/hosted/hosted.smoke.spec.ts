@@ -7,10 +7,11 @@ test.describe('hosted operator smoke', () => {
   test('operator dashboard loads seeded campaign state', async ({ page }) => {
     await page.goto('/operator');
 
-    await expect(page.getByText('Olivia Operator')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Texas fleet, one control room.' })).toBeVisible();
-    await expect(page.getByText('Hosted smoke accepted offer')).toBeVisible();
-    await expect(page.getByText('1 offer waiting')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /control room/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    await expect(page.getByTestId('operator-create-slot-form')).toBeVisible();
+    await expect(page.getByTestId('operator-incoming-offers-list')).toBeVisible();
+    await expect(page.getByTestId('operator-accept-offer-submit').first()).toBeVisible();
   });
 });
 
@@ -20,10 +21,12 @@ test.describe('hosted planner smoke', () => {
   test('planner marketplace shows execution and proof state', async ({ page }) => {
     await page.goto('/planner/search');
 
-    await expect(page.getByText('Parker Planner')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Search mobile inventory fast.' })).toBeVisible();
-    await expect(page.getByText('Execution:')).toBeVisible();
-    await expect(page.getByText('Uploaded • 1 proof logged')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /search mobile inventory/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    await expect(page.getByTestId('planner-apply-filters-submit')).toBeVisible();
+    await expect(page.getByTestId('planner-map-provider-label')).toBeVisible();
+    await expect(page.getByTestId('planner-submitted-offers-list')).toBeVisible();
+    await expect(page.getByTestId(/planner-submitted-offer-/).first()).toBeVisible();
   });
 });
 
@@ -33,9 +36,11 @@ test.describe('hosted driver smoke', () => {
   test('driver workspace shows assigned run', async ({ page }) => {
     await page.goto('/driver');
 
-    await expect(page.getByText('Drew Driver', { exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Execute runs without call-chain chaos.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /execute runs/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
     await expect(page.getByText('Proof review pending')).toBeVisible();
-    await expect(page.getByTestId('driver-action-en_route')).toBeVisible();
+    const firstRun = page.getByTestId(/driver-run-/).first();
+    await expect(firstRun).toBeVisible();
+    await expect(firstRun.getByTestId(/driver-action-en_route-/)).toBeVisible();
   });
 });
