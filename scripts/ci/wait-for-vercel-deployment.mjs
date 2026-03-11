@@ -37,7 +37,7 @@ async function fetchDeployments() {
       }).finally(() => clearTimeout(timeout));
 
       if (response.ok) {
-        return response.json();
+        return await response.json();
       }
 
       if (response.status !== 429 && response.status < 500) {

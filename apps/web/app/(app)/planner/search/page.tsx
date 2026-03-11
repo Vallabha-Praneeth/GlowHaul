@@ -165,7 +165,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
       </section>
 
       <div className="card-grid">
-        <section className="card" data-testid="planner-submitted-offers">
+        <section className="card" data-testid="planner-map-card">
           <div className="section-header">
             <h2 style={{ margin: 0 }}>Map</h2>
             <span className="fine">Provider abstracted</span>
@@ -190,7 +190,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
           </div>
         </section>
 
-        <section className="card">
+        <section className="card" data-testid="planner-submitted-offers">
           <div className="section-header">
             <h2 style={{ margin: 0 }}>My offers</h2>
             <span className="fine">Offer, dispatch, and proof visibility</span>

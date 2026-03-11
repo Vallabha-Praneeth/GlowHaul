@@ -144,12 +144,16 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                         <input
                           accept="image/*,video/*,application/pdf"
                           className="input"
-                          data-testid="driver-proof-file-input"
+                          data-testid={`driver-proof-file-input-${run.id}`}
                           name="proofFile"
                           type="file"
                         />
                       </label>
-                      <button className="button-secondary" data-testid="driver-proof-upload-button" type="submit">
+                      <button
+                        className="button-secondary"
+                        data-testid={`driver-proof-upload-button-${run.id}`}
+                        type="submit"
+                      >
                         Upload proof
                       </button>
                     </form>

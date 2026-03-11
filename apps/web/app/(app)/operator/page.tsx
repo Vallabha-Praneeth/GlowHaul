@@ -62,7 +62,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
       </section>
 
       <div className="card-grid">
-        <section className="card" data-testid="operator-incoming-offers">
+        <section className="card" data-testid="operator-slot-inventory-card">
           <div className="section-header">
             <div>
               <h2 style={{ margin: 0 }}>Create slot inventory</h2>
@@ -143,7 +143,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
           )}
         </section>
 
-        <section className="card">
+        <section className="card" data-testid="operator-incoming-offers">
           <div className="section-header">
             <div>
               <h2 style={{ margin: 0 }}>Incoming offers</h2>
