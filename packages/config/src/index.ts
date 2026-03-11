@@ -43,6 +43,9 @@ export const serverEnvSchema = publicEnvSchema.extend({
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
+/**
+ * Check whether the public Supabase URL and anon key are configured with real values.
+ */
 export function hasSupabaseCredentials(env: Pick<ServerEnv, 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_ANON_KEY'>) {
   return Boolean(
     env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -56,6 +59,9 @@ const LOCAL_HOST_PATTERN =
 const DNS_HOST_PATTERN =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?::\d+)?$/i;
 
+/**
+ * Allow only local or DNS-style hosts that are safe to promote into an app origin.
+ */
 function isAllowedHost(candidate: string) {
   return LOCAL_HOST_PATTERN.test(candidate) || DNS_HOST_PATTERN.test(candidate);
 }
@@ -124,6 +130,9 @@ export type AppUrlResolutionInput = Partial<
   origin?: string | null;
 };
 
+/**
+ * Resolve the canonical app origin from trusted request headers and deployment environment variables.
+ */
 export function resolveAppUrl(input: AppUrlResolutionInput) {
   const fromOrigin = normalizeUrlCandidate(input.origin ?? '');
   if (fromOrigin) {
@@ -131,7 +140,7 @@ export function resolveAppUrl(input: AppUrlResolutionInput) {
   }
 
   if (input.forwardedHost) {
-    const proto = input.forwardedProto?.trim().toLowerCase();
+    const proto = input.forwardedProto?.split(',')[0]?.trim().toLowerCase();
     const forwardedCandidate =
       proto === 'http' || proto === 'https' ? `${proto}://${input.forwardedHost}` : input.forwardedHost;
     const fromForwardedHost = normalizeUrlCandidate(forwardedCandidate);

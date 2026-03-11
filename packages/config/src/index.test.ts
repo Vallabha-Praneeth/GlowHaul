@@ -80,6 +80,15 @@ test('resolveAppUrl validates forwarded host and proto before using them', () =>
     }),
     'https://glow-haul.vercel.app'
   );
+
+  assert.equal(
+    resolveAppUrl({
+      forwardedHost: 'preview-123.vercel.app',
+      forwardedProto: 'https, http',
+      NEXT_PUBLIC_APP_URL: 'http://127.0.0.1:3100',
+    }),
+    'https://preview-123.vercel.app'
+  );
 });
 
 test('resolveAppUrl honors production preview and fallback precedence', () => {
