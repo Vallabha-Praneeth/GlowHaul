@@ -6,8 +6,10 @@ const { test: setup } = require('@playwright/test');
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const RESET_RETRY_LIMIT = 3;
 const SUPABASE_HEALTH_TIMEOUT_MS = 90_000;
+const SUPABASE_RECOVERY_TIMEOUT_MS = 180_000;
 const repoRoot = path.resolve(__dirname, '../..');
 const authStateDir = path.join(repoRoot, 'tests/e2e/.auth');
+const supabaseProjectDir = path.join(repoRoot, 'packages/supabase');
 
 function shouldResetLocalDatabase() {
   if (process.env.PLAYWRIGHT_RESET_DB === '0') {
@@ -68,6 +70,47 @@ async function waitForSupabaseServices(timeoutMs = SUPABASE_HEALTH_TIMEOUT_MS) {
   await waitForUrl(getSupabaseStorageVersionUrl(), timeoutMs);
 }
 
+function runSupabaseCommand(args) {
+  const result = spawnSync('supabase', args, {
+    cwd: supabaseProjectDir,
+    env: process.env,
+    encoding: 'utf8',
+  });
+
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+  }
+
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+  }
+
+  return result;
+}
+
+async function ensureSupabaseServicesReady(timeoutMs = SUPABASE_RECOVERY_TIMEOUT_MS) {
+  try {
+    await waitForSupabaseServices(timeoutMs);
+    return;
+  } catch (waitError) {
+    const startResult = runSupabaseCommand(['start']);
+    if (startResult.status !== 0) {
+      const startError = new Error(
+        startResult.error?.message ??
+          startResult.stderr?.trim() ??
+          startResult.stdout?.trim() ??
+          `supabase start exited with status ${startResult.status ?? 'unknown'}.`,
+      );
+      startError.stdout = startResult.stdout;
+      startError.stderr = startResult.stderr;
+      startError.cause = waitError;
+      throw startError;
+    }
+
+    await waitForSupabaseServices(timeoutMs);
+  }
+}
+
 function isRetryableResetFailure(error) {
   const errorText = [error?.message, error?.stdout?.toString?.(), error?.stderr?.toString?.()]
     .filter(Boolean)
@@ -92,24 +135,12 @@ async function resetLocalDatabaseWithRetry() {
   let lastError;
 
   for (let attempt = 1; attempt <= RESET_RETRY_LIMIT; attempt += 1) {
-    await waitForSupabaseServices();
+    await ensureSupabaseServicesReady();
 
-    const result = spawnSync('supabase', ['db', 'reset'], {
-      cwd: path.join(repoRoot, 'packages/supabase'),
-      env: process.env,
-      encoding: 'utf8',
-    });
-
-    if (result.stdout) {
-      process.stdout.write(result.stdout);
-    }
-
-    if (result.stderr) {
-      process.stderr.write(result.stderr);
-    }
+    const result = runSupabaseCommand(['db', 'reset']);
 
     if (result.status === 0) {
-      await waitForSupabaseServices();
+      await ensureSupabaseServicesReady();
       return;
     }
 
@@ -124,7 +155,7 @@ async function resetLocalDatabaseWithRetry() {
     lastError = error;
 
     if (isPostResetRestartFalseNegative(error)) {
-      await waitForSupabaseServices();
+      await ensureSupabaseServicesReady();
       return;
     }
 
@@ -132,6 +163,8 @@ async function resetLocalDatabaseWithRetry() {
       throw error;
     }
 
+    runSupabaseCommand(['stop']);
+    runSupabaseCommand(['start']);
     await new Promise((resolve) => setTimeout(resolve, attempt * 3_000));
   }
 
