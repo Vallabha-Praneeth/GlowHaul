@@ -148,13 +148,13 @@ test('planner offer can be submitted and later shows execution and proof state v
     const executingOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(executingOffer).toContainText('Execution: En Route', { timeout: 15_000 });
 
-    const uploadInput = getDriverRunCard().getByTestId('driver-proof-file-input');
+    const uploadInput = getDriverRunCard().getByTestId(/driver-proof-file-input-/);
     await uploadInput.setInputFiles({
       buffer: Buffer.from('planner-visibility-proof'),
       mimeType: 'image/jpeg',
       name: proofFileName,
     });
-    await getDriverRunCard().getByTestId('driver-proof-upload-button').click();
+    await getDriverRunCard().getByTestId(/driver-proof-upload-button-/).click();
     await waitForRouteValue({
       description: `driver proof upload ${proofFileName}`,
       intervalMs: 2_000,

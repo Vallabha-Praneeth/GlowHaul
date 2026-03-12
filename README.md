@@ -67,6 +67,17 @@ pnpm test:e2e
 
 The workflow boots a local Supabase stack on the runner, exports the local anon and service-role keys into the job environment, installs the Chromium Playwright browser, and uploads Playwright artifacts on every run.
 
+A separate hosted smoke workflow now runs after `CI` succeeds on `main`. It waits for the matching Vercel production deployment, then runs a minimal authenticated Playwright pass against the deployed app. This lane is supplemental and does not replace the local CI-grade suite.
+
+Reproduce the hosted lane locally with:
+
+```bash
+PLAYWRIGHT_BASE_URL=https://glow-haul.vercel.app \
+HOSTED_SUPABASE_URL=https://your-project.supabase.co \
+HOSTED_SUPABASE_SERVICE_ROLE_KEY=your_service_role_or_sb_secret_key \
+pnpm test:e2e:hosted
+```
+
 ## Deployment
 
 Hosted deployment is structured around `Vercel` plus a hosted `Supabase` project:
@@ -81,9 +92,11 @@ Use [docs/deployment/vercel-hosted-supabase.md](docs/deployment/vercel-hosted-su
 ## Testing Model
 
 - `Playwright` is the CI-grade E2E system.
+- `Hosted Smoke` is a lightweight post-deploy Playwright acceptance lane against the real production deployment.
 - `Chrome MCP` is the real-browser smoke, acceptance, and debugging lane.
 - Chrome MCP never replaces automated E2E in CI.
 - Chrome MCP reports belong under `reports/smoke/`.
+- Reproduce the hosted Playwright lane locally with `PLAYWRIGHT_BASE_URL`, `HOSTED_SUPABASE_URL`, and `HOSTED_SUPABASE_SERVICE_ROLE_KEY`, then run `pnpm test:e2e:hosted`.
 
 ## Manual Acceptance
 

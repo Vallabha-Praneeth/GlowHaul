@@ -16,10 +16,22 @@ export const authFiles: Record<DemoRole, string> = {
   planner: 'tests/e2e/.auth/planner.json',
 };
 
+export const hostedAuthFiles: Record<DemoRole, string> = {
+  driver: 'tests/e2e/.auth/hosted-driver.json',
+  operator: 'tests/e2e/.auth/hosted-operator.json',
+  planner: 'tests/e2e/.auth/hosted-planner.json',
+};
+
 export const roleHomePaths: Record<DemoRole, string> = {
   driver: '/driver',
   operator: '/operator',
   planner: '/planner/search',
+};
+
+export const hostedDemoEmails: Record<DemoRole, string> = {
+  driver: 'driver.demo@glowhaul.app',
+  operator: 'operator.demo@glowhaul.app',
+  planner: 'planner.demo@glowhaul.app',
 };
 
 export const roleLandingText: Record<DemoRole, string> = {

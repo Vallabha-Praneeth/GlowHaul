@@ -83,71 +83,83 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Assigned runs</h2>
             <div className="stack">
-              {data.assignedRuns.length > 0 ? data.assignedRuns.map((run) => (
-                <div className="surface" key={run.id} style={{ padding: 18 }}>
-                  <div className="section-header">
-                    <div>
-                      <div style={{ fontWeight: 700 }}>{run.title}</div>
-                      <div className="fine" style={{ marginTop: 6 }}>{run.detail}</div>
-                    </div>
-                    <div className="stack" style={{ alignItems: 'flex-end', gap: 8 }}>
-                      <span className={`badge ${getRunTone(run.runStatus)}`}>{run.statusLabel}</span>
-                      <span className={`badge ${run.latestProofStatusLabel === 'Approved' ? 'success' : 'warning'}`}>
-                        {run.latestProofStatusLabel}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="fine" style={{ marginTop: 6 }}>
-                    {run.bookingStatusLabel} • {run.proofCountLabel}
-                  </div>
-                  <div className="fine" style={{ marginTop: 6 }}>
-                    {run.proofRequired ? 'Proof required before completion.' : 'Proof optional for this run.'}
-                  </div>
-                  {run.latestProofReviewNotes ? (
-                    <div className="fine" style={{ marginTop: 6 }}>Review note: {run.latestProofReviewNotes}</div>
-                  ) : null}
+              {data.assignedRuns.length > 0 ? data.assignedRuns.map((run) => {
+                const nextAction = getNextRunAction(run.runStatus);
 
-                  {getNextRunAction(run.runStatus) ? (
-                    <form action={updateDriverRunStatus} className="stack" style={{ marginTop: 14 }}>
-                      <input name="runId" type="hidden" value={run.id} />
-                      <input name="nextStatus" type="hidden" value={getNextRunAction(run.runStatus)?.value} />
-                      <div className="pill" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span>{getNextRunAction(run.runStatus)?.description}</span>
-                        <button className="button-secondary" data-testid="driver-run-status-button" type="submit">
-                          {getNextRunAction(run.runStatus)?.label}
-                        </button>
+                return (
+                  <div className="surface" data-testid={`driver-run-${run.id}`} key={run.id} style={{ padding: 18 }}>
+                    <div className="section-header">
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{run.title}</div>
+                        <div className="fine" style={{ marginTop: 6 }}>{run.detail}</div>
                       </div>
+                      <div className="stack" style={{ alignItems: 'flex-end', gap: 8 }}>
+                        <span className={`badge ${getRunTone(run.runStatus)}`}>{run.statusLabel}</span>
+                        <span className={`badge ${run.latestProofStatusLabel === 'Approved' ? 'success' : 'warning'}`}>
+                          {run.latestProofStatusLabel}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="fine" style={{ marginTop: 6 }}>
+                      {run.bookingStatusLabel} • {run.proofCountLabel}
+                    </div>
+                    <div className="fine" style={{ marginTop: 6 }}>
+                      {run.proofRequired ? 'Proof required before completion.' : 'Proof optional for this run.'}
+                    </div>
+                    {run.latestProofReviewNotes ? (
+                      <div className="fine" style={{ marginTop: 6 }}>Review note: {run.latestProofReviewNotes}</div>
+                    ) : null}
+
+                    {nextAction ? (
+                      <form action={updateDriverRunStatus} className="stack" style={{ marginTop: 14 }}>
+                        <input name="runId" type="hidden" value={run.id} />
+                        <input name="nextStatus" type="hidden" value={nextAction.value} />
+                        <div className="pill" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>{nextAction.description}</span>
+                          <button
+                            className="button-secondary"
+                            data-testid={`driver-action-${nextAction.value}-${run.id}`}
+                            type="submit"
+                          >
+                            {nextAction.label}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="pill" style={{ marginTop: 14 }}>
+                        This run is complete. Upload or review proof from the ledger below if needed.
+                      </div>
+                    )}
+
+                    {run.runStatus === 'live' && run.proofRequired && run.proofCount === 0 ? (
+                      <div className="badge warning" style={{ marginTop: 12 }}>
+                        Upload at least one proof file before completing this run.
+                      </div>
+                    ) : null}
+
+                    <form action={uploadDriverProof} className="stack" style={{ marginTop: 14 }}>
+                      <input name="runId" type="hidden" value={run.id} />
+                      <label className="form-field">
+                        <span className="fine">Proof file</span>
+                        <input
+                          accept="image/*,video/*,application/pdf"
+                          className="input"
+                          data-testid={`driver-proof-file-input-${run.id}`}
+                          name="proofFile"
+                          type="file"
+                        />
+                      </label>
+                      <button
+                        className="button-secondary"
+                        data-testid={`driver-proof-upload-button-${run.id}`}
+                        type="submit"
+                      >
+                        Upload proof
+                      </button>
                     </form>
-                  ) : (
-                    <div className="pill" style={{ marginTop: 14 }}>
-                      This run is complete. Upload or review proof from the ledger below if needed.
-                    </div>
-                  )}
-
-                  {run.runStatus === 'live' && run.proofRequired && run.proofCount === 0 ? (
-                    <div className="badge warning" style={{ marginTop: 12 }}>
-                      Upload at least one proof file before completing this run.
-                    </div>
-                  ) : null}
-
-                  <form action={uploadDriverProof} className="stack" style={{ marginTop: 14 }}>
-                    <input name="runId" type="hidden" value={run.id} />
-                    <label className="form-field">
-                      <span className="fine">Proof file</span>
-                      <input
-                        accept="image/*,video/*,application/pdf"
-                        className="input"
-                        data-testid="driver-proof-file-input"
-                        name="proofFile"
-                        type="file"
-                      />
-                    </label>
-                    <button className="button-secondary" data-testid="driver-proof-upload-button" type="submit">
-                      Upload proof
-                    </button>
-                  </form>
-                </div>
-              )) : (
+                  </div>
+                );
+              }) : (
                 <div className="fine">No assigned runs are currently available for this driver.</div>
               )}
             </div>

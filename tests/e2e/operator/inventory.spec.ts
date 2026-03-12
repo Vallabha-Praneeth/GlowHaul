@@ -162,13 +162,14 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await expect(updatedCampaignCard.locator('textarea[name="internalNote"]')).toHaveValue(internalNote);
 
     await driverPage.goto(roleHomePaths.driver);
-    const uploadInput = driverPage.getByTestId('driver-proof-file-input').first();
+    const driverCampaignCard = driverPage.locator('div.surface').filter({ hasText: 'Dallas Product Launch' }).first();
+    const uploadInput = driverCampaignCard.getByTestId(/driver-proof-file-input-/);
     await uploadInput.setInputFiles({
       buffer: Buffer.from('operator-proof-review'),
       mimeType: 'image/jpeg',
       name: proofFileName,
     });
-    await driverPage.getByTestId('driver-proof-upload-button').first().click();
+    await driverCampaignCard.getByTestId(/driver-proof-upload-button-/).click();
     await waitForRouteValue({
       description: `driver proof upload ${proofFileName}`,
       intervalMs: 2_000,

@@ -18,11 +18,12 @@ Playwright is the deterministic end-to-end test system for GlowHaul. It is the C
 - Planner marketplace shell renders
 - Driver shell renders
 
-## Expansion Path
+## Planned Expansion Path
 
 - Add seeded auth state per role
 - Add mutation coverage for slots, offers, bookings, and proof uploads
 - Add preview-environment smoke execution in CI
+- Add hosted production smoke execution after the main CI workflow completes
 
 ## Current Phase 4 State
 
@@ -34,6 +35,20 @@ Playwright is the deterministic end-to-end test system for GlowHaul. It is the C
 - shared helpers live in [fixtures.ts](/Users/anitavallabha/led_truck_webstack/tests/e2e/fixtures.ts)
 - `setup-auth` no longer depends on a browser launch, which keeps project-scoped runs stable in constrained local environments
 - `PLAYWRIGHT_RESET_DB=0` is available as an explicit local override, but the default path is a seeded reset so the suite does not drift into polluted-state flake
+
+## Hosted Smoke Lane
+
+- `Hosted Smoke` is a separate GitHub Actions workflow chained from `CI` with `workflow_run`, so the local deterministic lane stays authoritative and isolated
+- the hosted lane waits for the matching Vercel production deployment for the merged commit before running
+- hosted auth state is created through Supabase admin `generateLink(...)` plus an app-compatible `/auth/confirm` URL, then saved with Playwright `request.storageState(...)`
+- hosted smoke covers one minimal authenticated assertion per role against the deployed app
+- required GitHub repository secrets:
+  - `HOSTED_SUPABASE_URL`
+  - `HOSTED_SUPABASE_SERVICE_ROLE_KEY`
+  - `VERCEL_PROJECT_ID`
+  - `VERCEL_TEAM_ID`
+  - `VERCEL_TOKEN`
+- reproduce the hosted lane locally with `PLAYWRIGHT_BASE_URL`, `HOSTED_SUPABASE_URL`, and `HOSTED_SUPABASE_SERVICE_ROLE_KEY`, then run `pnpm test:e2e:hosted`
 
 ## Relationship To Chrome MCP
 
