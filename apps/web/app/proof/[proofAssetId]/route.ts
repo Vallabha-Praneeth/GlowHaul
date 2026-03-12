@@ -25,7 +25,8 @@ export async function GET(
   const admin = createAdminSupabaseClient();
 
   if (!admin) {
-    return new NextResponse('Supabase admin client is not configured.', { status: 503 });
+    console.error('Proof asset route unavailable: Supabase admin client is not configured.');
+    return new NextResponse('Service temporarily unavailable.', { status: 503 });
   }
 
   const { data: asset, error: assetError } = await admin
