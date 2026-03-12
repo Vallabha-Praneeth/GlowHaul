@@ -184,7 +184,7 @@ test('operator can reject offers, progress campaigns, and review proof', async (
 
     await page.goto(roleHomePaths.operator);
     const proofCard = page.locator('form.surface').filter({ hasText: proofFileName }).first();
-    await expect(proofCard.getByRole('link', { name: 'View proof' })).toBeVisible();
+    await expect(proofCard.getByTestId(/operator-proof-view-cta-/)).toBeVisible();
     await proofCard.getByLabel('Review note').fill(proofReviewNote);
     await proofCard.getByRole('button', { name: 'Reject proof' }).click();
     await waitForRouteValue({

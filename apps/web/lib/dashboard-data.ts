@@ -1,6 +1,5 @@
 import type { Database } from '../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from './auth';
-import { createAdminSupabaseClient } from './supabase/admin';
 import { createServerSupabaseClient } from './supabase/server';
 
 type BadgeTone = 'success' | 'warning';
@@ -271,26 +270,8 @@ function getFileName(path: string) {
   return parts[parts.length - 1] ?? path;
 }
 
-async function getProofAssetUrls(paths: string[]) {
-  const admin = createAdminSupabaseClient();
-
-  if (!admin || paths.length === 0) {
-    return new Map<string, string>();
-  }
-
-  const uniquePaths = Array.from(new Set(paths));
-  const entries = await Promise.all(
-    uniquePaths.map(async (path) => {
-      const { data, error } = await admin.storage.from('proof-uploads').createSignedUrl(path, 60 * 60);
-      if (error || !data?.signedUrl) {
-        return [path, ''] as const;
-      }
-
-      return [path, data.signedUrl] as const;
-    })
-  );
-
-  return new Map(entries.filter((entry) => entry[1]));
+function getProofAssetHref(id: string) {
+  return `/proof/${id}`;
 }
 
 function buildOperatorDispatchState(
@@ -566,7 +547,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
   }
 
   const organization = await getOrganization(profile.organization_id);
-  const [trucksResult, slotsResult, offersResult, bookingsResult, runsResult, proofAssetsResult, driversResult] = await Promise.all([
+  const [trucksResult, slotsResult, offersResult, bookingsResult, driversResult] = await Promise.all([
     supabase
       .from('trucks')
       .select('id, display_name, vehicle_code, home_region')
@@ -587,14 +568,6 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       .eq('operator_organization_id', profile.organization_id)
       .order('updated_at', { ascending: false }),
     supabase
-      .from('runs')
-      .select('id, booking_id, driver_id, scheduled_start_at, scheduled_end_at, status, proof_required')
-      .order('scheduled_start_at'),
-    supabase
-      .from('proof_assets')
-      .select('id, run_id, driver_id, storage_path, captured_at, created_at, status, review_notes, reviewed_at')
-      .order('created_at', { ascending: false }),
-    supabase
       .from('profiles')
       .select('id, full_name, email')
       .eq('organization_id', profile.organization_id)
@@ -607,8 +580,6 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     slotsResult.error ||
     offersResult.error ||
     bookingsResult.error ||
-    runsResult.error ||
-    proofAssetsResult.error ||
     driversResult.error
   ) {
     return fallback;
@@ -630,17 +601,46 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     BookingRow,
     'campaign_name' | 'id' | 'internal_note' | 'planner_organization_id' | 'slot_id' | 'status'
   >[];
+  const organizationDrivers = (driversResult.data ?? []) as Pick<
+    ProfileRow,
+    'email' | 'full_name' | 'id'
+  >[];
+
+  const bookingIds = bookings.map((booking) => booking.id);
+  const runsResult =
+    bookingIds.length > 0
+      ? await supabase
+          .from('runs')
+          .select('id, booking_id, driver_id, scheduled_start_at, scheduled_end_at, status, proof_required')
+          .in('booking_id', bookingIds)
+          .order('scheduled_start_at')
+      : { data: [], error: null };
+
+  if (runsResult.error) {
+    return fallback;
+  }
+
   const runs = (runsResult.data ?? []) as Pick<
     RunRow,
     'booking_id' | 'driver_id' | 'id' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'
   >[];
+  const runIds = runs.map((run) => run.id);
+  const proofAssetsResult =
+    runIds.length > 0
+      ? await supabase
+          .from('proof_assets')
+          .select('id, run_id, driver_id, storage_path, captured_at, created_at, status, review_notes, reviewed_at')
+          .in('run_id', runIds)
+          .order('created_at', { ascending: false })
+      : { data: [], error: null };
+
+  if (proofAssetsResult.error) {
+    return fallback;
+  }
+
   const proofAssets = (proofAssetsResult.data ?? []) as Pick<
     ProofAssetRow,
     'captured_at' | 'created_at' | 'driver_id' | 'id' | 'review_notes' | 'reviewed_at' | 'run_id' | 'status' | 'storage_path'
-  >[];
-  const organizationDrivers = (driversResult.data ?? []) as Pick<
-    ProfileRow,
-    'email' | 'full_name' | 'id'
   >[];
 
   const plannerOrganizations = await getOrganizationsMap(
@@ -649,8 +649,6 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
   const drivers = await getProfilesMap(
     Array.from(new Set(runs.map((run) => run.driver_id).concat(proofAssets.map((asset) => asset.driver_id)).filter(Boolean))) as string[]
   );
-  const proofAssetUrls = await getProofAssetUrls(proofAssets.map((asset) => asset.storage_path));
-
   const truckMap = new Map(trucks.map((truck) => [truck.id, truck]));
   const slotMap = new Map(slots.map((slot) => [slot.id, slot]));
   const runByBookingId = new Map(runs.map((run) => [run.booking_id, run]));
@@ -758,7 +756,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       const driver = drivers.get(asset.driver_id);
       const reviewAction = buildProofReviewAction(asset.status, asset.status === 'uploaded');
       return {
-        assetUrl: proofAssetUrls.get(asset.storage_path) ?? null,
+        assetUrl: getProofAssetHref(asset.id),
         canReview: asset.status === 'uploaded',
         driverLabel: driver?.full_name ?? driver?.email ?? 'Assigned driver',
         fileName: getFileName(asset.storage_path),
@@ -1067,8 +1065,6 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
     group.push(asset);
     proofsByRun.set(asset.run_id, group);
   });
-  const proofAssetUrls = await getProofAssetUrls(proofAssets.map((asset) => asset.storage_path));
-
   const approvedProofs = proofAssets.filter((asset) => asset.status === 'approved');
 
   return {
@@ -1106,7 +1102,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       const run = runs.find((entry) => entry.id === asset.run_id);
       const booking = run ? bookingMap.get(run.booking_id) : null;
       return {
-        assetUrl: proofAssetUrls.get(asset.storage_path) ?? null,
+        assetUrl: getProofAssetHref(asset.id),
         capturedAtLabel: asset.captured_at
           ? dateTimeFormatter.format(new Date(asset.captured_at))
           : dateTimeFormatter.format(new Date(asset.created_at)),

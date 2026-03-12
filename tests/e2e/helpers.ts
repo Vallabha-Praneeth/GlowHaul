@@ -42,7 +42,18 @@ export async function waitForRouteValue<T>({
   let lastValue;
 
   while (Date.now() < deadline) {
-    await page.goto(path);
+    const currentUrl = page.url();
+    const currentPath =
+      currentUrl && currentUrl !== 'about:blank'
+        ? new URL(currentUrl).pathname
+        : null;
+
+    if (currentPath === path) {
+      await page.reload();
+    } else {
+      await page.goto(path);
+    }
+
     lastValue = await read();
 
     if (until(lastValue)) {

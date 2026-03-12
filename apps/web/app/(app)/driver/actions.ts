@@ -67,19 +67,20 @@ export async function uploadDriverProof(formData: FormData) {
     }
 
     const extension = sanitizeFileName(fileValue.name || 'proof-upload');
-    const storagePath = `${profile.id}/${runId}/${Date.now()}-${extension}`;
     const mimeType = fileValue.type || 'application/octet-stream';
     const fileBytes = new Uint8Array(await fileValue.arrayBuffer());
     let uploadErrorMessage: string | null = null;
+    let uploadedStoragePath: string | null = null;
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const storagePath = `${profile.id}/${runId}/${Date.now()}-${attempt}-${extension}`;
       const { error: uploadError } = await supabase.storage.from('proof-uploads').upload(storagePath, fileBytes, {
         contentType: mimeType,
         upsert: false,
       });
 
       if (!uploadError) {
-        uploadErrorMessage = null;
+        uploadedStoragePath = storagePath;
         break;
       }
 
@@ -91,8 +92,8 @@ export async function uploadDriverProof(formData: FormData) {
       await sleep(attempt * 500);
     }
 
-    if (uploadErrorMessage) {
-      redirect('/driver?error=' + encodeMessage(uploadErrorMessage));
+    if (!uploadedStoragePath) {
+      redirect('/driver?error=' + encodeMessage(uploadErrorMessage ?? 'Unable to upload proof.'));
     }
 
     const proofPayload: ProofAssetInsert = {
@@ -101,7 +102,7 @@ export async function uploadDriverProof(formData: FormData) {
       mime_type: mimeType,
       run_id: runId,
       status: 'uploaded',
-      storage_path: storagePath,
+      storage_path: uploadedStoragePath,
     };
     const { error: insertError } = await (supabase.from('proof_assets') as any).insert(proofPayload);
 

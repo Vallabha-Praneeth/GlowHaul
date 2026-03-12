@@ -371,7 +371,13 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                 <div className="pill" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>{proof.nextAction}</span>
                   {proof.assetUrl ? (
-                    <a className="button-secondary" href={proof.assetUrl} rel="noreferrer" target="_blank">
+                    <a
+                      className="button-secondary"
+                      data-testid={`operator-proof-view-cta-${proof.id}`}
+                      href={proof.assetUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
                       View proof
                     </a>
                   ) : null}

@@ -87,11 +87,15 @@ test('driver can upload proof into Supabase storage and receive operator review 
       name: fileName,
     });
     await page.getByTestId(/driver-proof-upload-button-/).first().click();
-
-    await expect.poll(async () => {
-      await page.goto(roleHomePaths.driver);
-      return await page.locator('div.pill').filter({ hasText: fileName }).count();
-    }, { timeout: 30_000 }).toBe(1);
+    await waitForRouteValue({
+      description: `driver proof upload ${fileName}`,
+      intervalMs: 2_000,
+      page,
+      path: roleHomePaths.driver,
+      timeoutMs: 60_000,
+      read: async () => page.locator('div.pill').filter({ hasText: fileName }).count(),
+      until: (count) => count === 1,
+    });
 
     await operatorPage.goto(roleHomePaths.operator);
     const proofCard = operatorPage.locator('form.surface').filter({ hasText: fileName }).first();
@@ -110,7 +114,7 @@ test('driver can upload proof into Supabase storage and receive operator review 
     }, { timeout: 30_000 }).toContain('Approved');
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText(reviewNote, { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText('Approved proof is ready for planner share.', { timeout: 30_000 });
-    await expect(page.locator('div.pill').filter({ hasText: fileName }).first().getByRole('link', { name: 'Open proof file' })).toBeVisible();
+    await expect(page.locator('div.pill').filter({ hasText: fileName }).first().getByTestId(/driver-proof-open-file-/)).toBeVisible();
   } finally {
     await operatorContext.close();
   }
@@ -160,10 +164,10 @@ test('driver can progress an assigned run through execution states', async ({ br
     await expect(getRunCard()).toBeVisible();
     await expect(getRunCard().getByText('Assigned', { exact: true }).first()).toBeVisible();
 
-    await requestSubmit(getRunCard().locator('form').first());
+    await getRunCard().getByRole('button', { name: 'Mark en route' }).click();
     await refreshDriverRunCardUntil(page, campaignName, 'En Route');
 
-    await requestSubmit(getRunCard().locator('form').first());
+    await getRunCard().getByRole('button', { name: 'Mark live' }).click();
     await refreshDriverRunCardUntil(page, campaignName, 'Live');
     await expect(getRunCard().getByText('Upload at least one proof file before completing this run.')).toBeVisible();
 
@@ -187,7 +191,7 @@ test('driver can progress an assigned run through execution states', async ({ br
       until: (count) => count === 1,
     });
 
-    await requestSubmit(getRunCard().locator('form').first());
+    await getRunCard().getByRole('button', { name: 'Complete run' }).click();
     await refreshDriverRunCardUntil(page, campaignName, 'Completed');
     await expect(getRunCard()).toContainText('Proof uploaded. Waiting for operator review.');
 

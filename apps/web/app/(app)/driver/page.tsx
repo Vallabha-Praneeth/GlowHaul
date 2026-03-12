@@ -184,7 +184,13 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                   {proof.reviewedAtLabel ? <div className="fine">Reviewed {proof.reviewedAtLabel}</div> : null}
                   {proof.reviewNotes ? <div className="fine">Operator note: {proof.reviewNotes}</div> : null}
                   {proof.assetUrl ? (
-                    <a className="fine" href={proof.assetUrl} rel="noreferrer" target="_blank">
+                    <a
+                      className="fine"
+                      data-testid={`driver-proof-open-file-${proof.id}`}
+                      href={proof.assetUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
                       Open proof file
                     </a>
                   ) : null}
