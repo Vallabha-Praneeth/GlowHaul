@@ -37,12 +37,21 @@ export async function waitForRouteValue<T>({
   read,
   timeoutMs = 60_000,
   until,
-}: WaitForRouteValueOptions<T>) {
+}: WaitForRouteValueOptions<T>): Promise<T> {
   const deadline = Date.now() + timeoutMs;
-  let lastValue;
+  let lastValue: T | undefined;
 
   while (Date.now() < deadline) {
-    await page.goto(path);
+    const currentUrl = page.url();
+    const currentPath =
+      currentUrl && currentUrl !== 'about:blank'
+        ? new URL(currentUrl).pathname
+        : null;
+
+    if (currentPath !== path) {
+      await page.goto(path);
+    }
+
     lastValue = await read();
 
     if (until(lastValue)) {

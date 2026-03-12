@@ -148,6 +148,8 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     const updatedDispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
     await expect(updatedDispatchCampaignCard.locator('textarea[name="internalNote"]')).toHaveValue(dispatchInternalNote);
     await expect(updatedDispatchCampaignCard.locator('select[name="driverId"]')).toHaveValue('33333333-3333-3333-3333-333333333333');
+    await expect(updatedDispatchCampaignCard).toContainText('Rolling');
+    await expect(updatedDispatchCampaignCard).toContainText('The truck is on the move.');
 
     await refreshDriverAssignment(driverPage, dispatchCampaignName, 'En Route');
 
@@ -182,6 +184,7 @@ test('operator can reject offers, progress campaigns, and review proof', async (
 
     await page.goto(roleHomePaths.operator);
     const proofCard = page.locator('form.surface').filter({ hasText: proofFileName }).first();
+    await expect(proofCard.getByTestId(/operator-proof-view-cta-/)).toBeVisible();
     await proofCard.getByLabel('Review note').fill(proofReviewNote);
     await proofCard.getByRole('button', { name: 'Reject proof' }).click();
     await waitForRouteValue({
@@ -197,8 +200,12 @@ test('operator can reject offers, progress campaigns, and review proof', async (
         }
         return (await card.textContent()) ?? '';
       },
-      until: (text) => text.includes(proofReviewNote),
+      until: (text) => text.includes(proofReviewNote) && text.includes('Review already completed'),
     });
+
+    await driverPage.goto(roleHomePaths.driver);
+    const rejectedProofCard = driverPage.locator('div.pill').filter({ hasText: proofFileName }).first();
+    await expect(rejectedProofCard).toContainText('Upload another proof file');
   } finally {
     await plannerContext.close();
     await driverContext.close();

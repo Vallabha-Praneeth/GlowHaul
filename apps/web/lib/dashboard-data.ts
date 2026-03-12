@@ -56,13 +56,18 @@ export type OperatorActiveBooking = {
   bookingId: string;
   bookingStatus: BookingRow['status'];
   campaignName: string;
+  dispatchStageLabel: string;
+  dispatchStageTone: BadgeTone;
   dispatchEndAtInput: string;
   dispatchStartAtInput: string;
   driverId: string;
   driverLabel: string;
   internalNote: string;
   latestProofStatusLabel: string;
+  nextAction: string;
   plannerLabel: string;
+  proofReviewLabel: string;
+  proofReviewTone: BadgeTone;
   proofRequired: boolean;
   proofCountLabel: string;
   runId: string | null;
@@ -77,11 +82,15 @@ export type OperatorDriverOption = {
 };
 
 export type OperatorProofReview = {
+  assetUrl: string | null;
   canReview: boolean;
   driverLabel: string;
   fileName: string;
   id: string;
+  nextAction: string;
   reviewNotes: string;
+  reviewedAtLabel: string | null;
+  reviewTone: BadgeTone;
   runTitle: string;
   statusLabel: string;
   uploadedAtLabel: string;
@@ -166,6 +175,8 @@ export type DriverAssignedRun = {
   id: string;
   latestProofReviewNotes: string | null;
   latestProofStatusLabel: string;
+  proofActionCallout: string;
+  proofActionTone: BadgeTone;
   proofCount: number;
   proofCountLabel: string;
   proofRequired: boolean;
@@ -175,9 +186,11 @@ export type DriverAssignedRun = {
 };
 
 export type DriverUploadedProof = {
+  assetUrl: string | null;
   capturedAtLabel: string;
   fileName: string;
   id: string;
+  nextAction: string;
   reviewNotes: string | null;
   reviewedAtLabel: string | null;
   runTitle: string;
@@ -255,6 +268,163 @@ function getStatusTone(status: string): BadgeTone {
 function getFileName(path: string) {
   const parts = path.split('/');
   return parts[parts.length - 1] ?? path;
+}
+
+function getProofAssetHref(id: string) {
+  return `/proof/${id}`;
+}
+
+function buildOperatorDispatchState(
+  booking: Pick<BookingRow, 'status'>,
+  run: Pick<RunRow, 'proof_required' | 'status'> | null,
+  proofCount: number,
+  latestProofStatus: ProofAssetRow['status'] | null
+) {
+  if (latestProofStatus === 'rejected') {
+    return {
+      dispatchStageLabel: 'Proof follow-up',
+      dispatchStageTone: 'warning' as const,
+      nextAction: 'Proof was rejected. Coordinate a reshoot or clearer upload with the driver before closeout.',
+      proofReviewLabel: 'Proof rejected',
+      proofReviewTone: 'warning' as const,
+    };
+  }
+
+  if (latestProofStatus === 'approved') {
+    return {
+      dispatchStageLabel: 'Client-ready',
+      dispatchStageTone: 'success' as const,
+      nextAction: 'Proof is approved. Wrap the campaign and share the final recap with the planner.',
+      proofReviewLabel: `${formatPlural(proofCount, 'proof')} approved`,
+      proofReviewTone: 'success' as const,
+    };
+  }
+
+  if (latestProofStatus === 'uploaded') {
+    return {
+      dispatchStageLabel: 'Proof review',
+      dispatchStageTone: 'warning' as const,
+      nextAction: 'A proof upload is waiting on operator review. Approve it or send the driver back for another pass.',
+      proofReviewLabel: `${formatPlural(proofCount, 'proof')} waiting`,
+      proofReviewTone: 'warning' as const,
+    };
+  }
+
+  if (!run || !run.status) {
+    return {
+      dispatchStageLabel: 'Dispatch pending',
+      dispatchStageTone: 'warning' as const,
+      nextAction: 'Assign a driver and lock the run window so the planner sees a concrete dispatch plan.',
+      proofReviewLabel: run?.proof_required ? 'Proof required once live' : 'Proof optional',
+      proofReviewTone: run?.proof_required ? 'warning' as const : 'success' as const,
+    };
+  }
+
+  if (run.status === 'assigned') {
+    return {
+      dispatchStageLabel: 'Driver assigned',
+      dispatchStageTone: 'success' as const,
+      nextAction: 'Driver is assigned. Next milestone is moving the run en route at launch time.',
+      proofReviewLabel: run.proof_required ? 'Proof required once live' : 'Proof optional',
+      proofReviewTone: run.proof_required ? 'warning' as const : 'success' as const,
+    };
+  }
+
+  if (run.status === 'en_route') {
+    return {
+      dispatchStageLabel: 'Rolling',
+      dispatchStageTone: 'warning' as const,
+      nextAction: 'The truck is on the move. Watch for the live confirmation and be ready to review proof later.',
+      proofReviewLabel: run.proof_required ? 'Proof required after route' : 'Proof optional',
+      proofReviewTone: run.proof_required ? 'warning' as const : 'success' as const,
+    };
+  }
+
+  if (run.status === 'live') {
+    return {
+      dispatchStageLabel: 'Live now',
+      dispatchStageTone: 'success' as const,
+      nextAction: run.proof_required
+        ? 'Campaign is live. Wait for the driver upload so review can happen immediately after the route.'
+        : 'Campaign is live. Close the run when the route ends.',
+      proofReviewLabel: run.proof_required ? 'Awaiting live proof' : 'Proof optional',
+      proofReviewTone: run.proof_required ? 'warning' as const : 'success' as const,
+    };
+  }
+
+  if (run.status === 'issue') {
+    return {
+      dispatchStageLabel: 'Issue',
+      dispatchStageTone: 'warning' as const,
+      nextAction: 'The route is blocked by an issue. Investigate the problem, update the plan, and move the run back to execution when ready.',
+      proofReviewLabel: proofCount > 0 ? `${formatPlural(proofCount, 'proof')} logged` : 'No proof uploaded',
+      proofReviewTone: proofCount > 0 ? 'success' as const : 'warning' as const,
+    };
+  }
+
+  return {
+    dispatchStageLabel: 'Closed',
+    dispatchStageTone: 'success' as const,
+    nextAction: 'Campaign execution is complete. Keep the proof ledger tidy and move to the next route.',
+    proofReviewLabel: proofCount > 0 ? `${formatPlural(proofCount, 'proof')} logged` : 'No proof uploaded',
+    proofReviewTone: proofCount > 0 ? 'success' as const : 'warning' as const,
+  };
+}
+
+function buildProofReviewAction(status: ProofAssetRow['status'], canReview: boolean) {
+  if (canReview) {
+    return {
+      nextAction: 'Open the asset, verify truck visibility, then approve or reject with a review note.',
+      reviewTone: 'warning' as const,
+    };
+  }
+
+  if (status === 'approved') {
+    return {
+      nextAction: 'Approved proof is ready for planner/client recap.',
+      reviewTone: 'success' as const,
+    };
+  }
+
+  return {
+    nextAction: 'Rejected proof needs a clearer resubmission from the driver.',
+    reviewTone: 'warning' as const,
+  };
+}
+
+function buildDriverProofAction(
+  latestProof: Pick<ProofAssetRow, 'review_notes' | 'status'> | null,
+  proofRequired: boolean
+) {
+  if (!latestProof) {
+    return {
+      proofActionCallout: proofRequired
+        ? 'Upload proof before you attempt to complete this run.'
+        : 'Upload proof if you want operator-ready evidence for this route.',
+      proofActionTone: proofRequired ? 'warning' as const : 'success' as const,
+    };
+  }
+
+  if (latestProof.status === 'rejected') {
+    return {
+      proofActionCallout: latestProof.review_notes
+        ? `Proof rejected. ${latestProof.review_notes}`
+        : 'Proof rejected. Upload another proof file before closing the loop.',
+      proofActionTone: 'warning' as const,
+    };
+  }
+
+  if (latestProof.status === 'uploaded') {
+    return {
+      proofActionCallout: 'Proof uploaded. Waiting for operator review.',
+      proofActionTone: 'warning' as const,
+    };
+  }
+
+  return {
+    proofActionCallout: 'Proof approved. This route is ready for planner/client recap.',
+    proofActionTone: 'success' as const,
+  };
 }
 
 function buildPlannerExecutionLabels(
@@ -387,7 +557,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
   }
 
   const organization = await getOrganization(profile.organization_id);
-  const [trucksResult, slotsResult, offersResult, bookingsResult, runsResult, proofAssetsResult, driversResult] = await Promise.all([
+  const [trucksResult, slotsResult, offersResult, bookingsResult, driversResult] = await Promise.all([
     supabase
       .from('trucks')
       .select('id, display_name, vehicle_code, home_region')
@@ -408,14 +578,6 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       .eq('operator_organization_id', profile.organization_id)
       .order('updated_at', { ascending: false }),
     supabase
-      .from('runs')
-      .select('id, booking_id, driver_id, scheduled_start_at, scheduled_end_at, status, proof_required')
-      .order('scheduled_start_at'),
-    supabase
-      .from('proof_assets')
-      .select('id, run_id, driver_id, storage_path, captured_at, created_at, status, review_notes')
-      .order('created_at', { ascending: false }),
-    supabase
       .from('profiles')
       .select('id, full_name, email')
       .eq('organization_id', profile.organization_id)
@@ -428,8 +590,6 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     slotsResult.error ||
     offersResult.error ||
     bookingsResult.error ||
-    runsResult.error ||
-    proofAssetsResult.error ||
     driversResult.error
   ) {
     return fallback;
@@ -451,17 +611,46 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     BookingRow,
     'campaign_name' | 'id' | 'internal_note' | 'planner_organization_id' | 'slot_id' | 'status'
   >[];
+  const organizationDrivers = (driversResult.data ?? []) as Pick<
+    ProfileRow,
+    'email' | 'full_name' | 'id'
+  >[];
+
+  const bookingIds = bookings.map((booking) => booking.id);
+  const runsResult =
+    bookingIds.length > 0
+      ? await supabase
+          .from('runs')
+          .select('id, booking_id, driver_id, scheduled_start_at, scheduled_end_at, status, proof_required')
+          .in('booking_id', bookingIds)
+          .order('scheduled_start_at')
+      : { data: [], error: null };
+
+  if (runsResult.error) {
+    return fallback;
+  }
+
   const runs = (runsResult.data ?? []) as Pick<
     RunRow,
     'booking_id' | 'driver_id' | 'id' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'
   >[];
+  const runIds = runs.map((run) => run.id);
+  const proofAssetsResult =
+    runIds.length > 0
+      ? await supabase
+          .from('proof_assets')
+          .select('id, run_id, driver_id, storage_path, captured_at, created_at, status, review_notes, reviewed_at')
+          .in('run_id', runIds)
+          .order('created_at', { ascending: false })
+      : { data: [], error: null };
+
+  if (proofAssetsResult.error) {
+    return fallback;
+  }
+
   const proofAssets = (proofAssetsResult.data ?? []) as Pick<
     ProofAssetRow,
-    'captured_at' | 'created_at' | 'driver_id' | 'id' | 'review_notes' | 'run_id' | 'status' | 'storage_path'
-  >[];
-  const organizationDrivers = (driversResult.data ?? []) as Pick<
-    ProfileRow,
-    'email' | 'full_name' | 'id'
+    'captured_at' | 'created_at' | 'driver_id' | 'id' | 'review_notes' | 'reviewed_at' | 'run_id' | 'status' | 'storage_path'
   >[];
 
   const plannerOrganizations = await getOrganizationsMap(
@@ -470,13 +659,12 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
   const drivers = await getProfilesMap(
     Array.from(new Set(runs.map((run) => run.driver_id).concat(proofAssets.map((asset) => asset.driver_id)).filter(Boolean))) as string[]
   );
-
   const truckMap = new Map(trucks.map((truck) => [truck.id, truck]));
   const slotMap = new Map(slots.map((slot) => [slot.id, slot]));
   const runByBookingId = new Map(runs.map((run) => [run.booking_id, run]));
   const proofsByRun = new Map<string, Pick<
     ProofAssetRow,
-    'captured_at' | 'created_at' | 'driver_id' | 'id' | 'review_notes' | 'run_id' | 'status' | 'storage_path'
+    'captured_at' | 'created_at' | 'driver_id' | 'id' | 'review_notes' | 'reviewed_at' | 'run_id' | 'status' | 'storage_path'
   >[]>();
 
   proofAssets.forEach((asset) => {
@@ -496,18 +684,24 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       const proofs = run ? proofsByRun.get(run.id) ?? [] : [];
       const latestProof = proofs[0] ?? null;
       const assignedDriver = run?.driver_id ? drivers.get(run.driver_id) : null;
+      const dispatchState = buildOperatorDispatchState(booking, run, proofs.length, latestProof?.status ?? null);
       return {
         bookingId: booking.id,
         bookingStatus: booking.status,
         campaignName: booking.campaign_name,
+        dispatchStageLabel: dispatchState.dispatchStageLabel,
+        dispatchStageTone: dispatchState.dispatchStageTone,
         dispatchEndAtInput: formatDateTimeInput(run?.scheduled_end_at ?? slot?.end_at ?? new Date().toISOString()),
         dispatchStartAtInput: formatDateTimeInput(run?.scheduled_start_at ?? slot?.start_at ?? new Date().toISOString()),
         driverId: run?.driver_id ?? '',
         driverLabel: assignedDriver?.full_name ?? assignedDriver?.email ?? 'No driver assigned',
         internalNote: booking.internal_note ?? '',
         latestProofStatusLabel: latestProof ? formatStatus(latestProof.status) : 'No proof yet',
+        nextAction: dispatchState.nextAction,
         plannerLabel:
           plannerOrganizations.get(booking.planner_organization_id)?.name ?? 'Planner organization',
+        proofReviewLabel: dispatchState.proofReviewLabel,
+        proofReviewTone: dispatchState.proofReviewTone,
         proofRequired: run?.proof_required ?? true,
         proofCountLabel: `${formatPlural(proofs.length, 'proof')} logged`,
         runId: run?.id ?? null,
@@ -570,12 +764,17 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       const run = runs.find((entry) => entry.id === asset.run_id);
       const booking = run ? bookings.find((entry) => entry.id === run.booking_id) : null;
       const driver = drivers.get(asset.driver_id);
+      const reviewAction = buildProofReviewAction(asset.status, asset.status === 'uploaded');
       return {
+        assetUrl: getProofAssetHref(asset.id),
         canReview: asset.status === 'uploaded',
         driverLabel: driver?.full_name ?? driver?.email ?? 'Assigned driver',
         fileName: getFileName(asset.storage_path),
         id: asset.id,
+        nextAction: reviewAction.nextAction,
         reviewNotes: asset.review_notes ?? '',
+        reviewedAtLabel: asset.reviewed_at ? dateTimeFormatter.format(new Date(asset.reviewed_at)) : null,
+        reviewTone: reviewAction.reviewTone,
         runTitle: booking?.campaign_name ?? 'Assigned campaign',
         statusLabel: formatStatus(asset.status),
         uploadedAtLabel: asset.captured_at
@@ -876,7 +1075,6 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
     group.push(asset);
     proofsByRun.set(asset.run_id, group);
   });
-
   const approvedProofs = proofAssets.filter((asset) => asset.status === 'approved');
 
   return {
@@ -884,12 +1082,15 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       const booking = bookingMap.get(run.booking_id);
       const proofs = proofsByRun.get(run.id) ?? [];
       const latestProof = proofs[0] ?? null;
+      const proofAction = buildDriverProofAction(latestProof, run.proof_required);
       return {
         bookingStatusLabel: booking ? formatStatus(booking.status) : 'Booking pending',
         detail: `${formatTimeWindow(run.scheduled_start_at, run.scheduled_end_at)} • ${formatStatus(run.status)}`,
         id: run.id,
         latestProofReviewNotes: latestProof?.review_notes ?? booking?.internal_note ?? null,
         latestProofStatusLabel: latestProof ? formatStatus(latestProof.status) : 'Awaiting first upload',
+        proofActionCallout: proofAction.proofActionCallout,
+        proofActionTone: proofAction.proofActionTone,
         proofCount: proofs.length,
         proofCountLabel: `${formatPlural(proofs.length, 'proof')} logged`,
         proofRequired: run.proof_required,
@@ -911,11 +1112,18 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       const run = runs.find((entry) => entry.id === asset.run_id);
       const booking = run ? bookingMap.get(run.booking_id) : null;
       return {
+        assetUrl: getProofAssetHref(asset.id),
         capturedAtLabel: asset.captured_at
           ? dateTimeFormatter.format(new Date(asset.captured_at))
           : dateTimeFormatter.format(new Date(asset.created_at)),
         fileName: getFileName(asset.storage_path),
         id: asset.id,
+        nextAction:
+          asset.status === 'approved'
+            ? 'Approved proof is ready for planner share.'
+            : asset.status === 'rejected'
+              ? 'Upload another proof file with the requested correction.'
+              : 'Waiting for operator review.',
         reviewNotes: asset.review_notes,
         reviewedAtLabel: asset.reviewed_at ? dateTimeFormatter.format(new Date(asset.reviewed_at)) : null,
         runTitle: booking?.campaign_name ?? 'Assigned campaign',

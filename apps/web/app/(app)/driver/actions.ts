@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { recordIdSchema } from '@glowhaul/core';
 import type { Database } from '../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
 import { rethrowRedirectError } from '../../../lib/redirect-errors';
@@ -11,8 +12,7 @@ import { createServerSupabaseClient } from '../../../lib/supabase/server';
 type ProofAssetInsert = Database['public']['Tables']['proof_assets']['Insert'];
 type DriverRunStatusRow = Pick<Database['public']['Tables']['runs']['Row'], 'id' | 'proof_required' | 'status'>;
 type RunStatus = Database['public']['Enums']['run_status'];
-const recordIdPattern = /^[0-9a-fA-F-]{36}$/;
-const recordIdSchema = z.string().regex(recordIdPattern, 'Invalid id.');
+type InsertResult = Promise<{ error: { message: string } | null }>;
 const runStatusSchema = z.enum(['assigned', 'en_route', 'live', 'completed', 'issue'] as const);
 
 function encodeMessage(message: string) {
@@ -23,11 +23,24 @@ function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
 }
 
+function sleep(timeoutMs: number) {
+  return new Promise((resolve) => setTimeout(resolve, timeoutMs));
+}
+
+function isRetryableStorageError(message: string) {
+  const normalized = message.toLowerCase();
+
+  return normalized.includes('invalid response was received from the upstream server')
+    || normalized.includes('error status 502')
+    || normalized.includes('error status 503')
+    || normalized.includes('error sending request');
+}
+
 export async function uploadDriverProof(formData: FormData) {
   const runId = formData.get('runId');
   const fileValue = formData.get('proofFile');
 
-  if (typeof runId !== 'string' || !recordIdPattern.test(runId)) {
+  if (typeof runId !== 'string' || !recordIdSchema.safeParse(runId).success) {
     redirect('/driver?error=' + encodeMessage('Choose a valid assigned run before uploading proof.'));
   }
 
@@ -54,15 +67,33 @@ export async function uploadDriverProof(formData: FormData) {
     }
 
     const extension = sanitizeFileName(fileValue.name || 'proof-upload');
-    const storagePath = `${profile.id}/${runId}/${Date.now()}-${extension}`;
     const mimeType = fileValue.type || 'application/octet-stream';
-    const { error: uploadError } = await supabase.storage.from('proof-uploads').upload(storagePath, fileValue, {
-      contentType: mimeType,
-      upsert: false,
-    });
+    const fileBytes = new Uint8Array(await fileValue.arrayBuffer());
+    let uploadErrorMessage: string | null = null;
+    let uploadedStoragePath: string | null = null;
 
-    if (uploadError) {
-      redirect('/driver?error=' + encodeMessage(uploadError.message));
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const storagePath = `${profile.id}/${runId}/${Date.now()}-${attempt}-${extension}`;
+      const { error: uploadError } = await supabase.storage.from('proof-uploads').upload(storagePath, fileBytes, {
+        contentType: mimeType,
+        upsert: false,
+      });
+
+      if (!uploadError) {
+        uploadedStoragePath = storagePath;
+        break;
+      }
+
+      uploadErrorMessage = uploadError.message;
+      if (!isRetryableStorageError(uploadError.message) || attempt === 3) {
+        break;
+      }
+
+      await sleep(attempt * 500);
+    }
+
+    if (!uploadedStoragePath) {
+      redirect('/driver?error=' + encodeMessage(uploadErrorMessage ?? 'Unable to upload proof.'));
     }
 
     const proofPayload: ProofAssetInsert = {
@@ -71,11 +102,22 @@ export async function uploadDriverProof(formData: FormData) {
       mime_type: mimeType,
       run_id: runId,
       status: 'uploaded',
-      storage_path: storagePath,
+      storage_path: uploadedStoragePath,
     };
-    const { error: insertError } = await (supabase.from('proof_assets') as any).insert(proofPayload);
+    const proofAssetTable = supabase.from('proof_assets') as unknown as {
+      insert: (values: ProofAssetInsert) => InsertResult;
+    };
+    const { error: insertError } = await proofAssetTable.insert(proofPayload);
 
     if (insertError) {
+      const { error: cleanupError } = await supabase.storage
+        .from('proof-uploads')
+        .remove([uploadedStoragePath]);
+
+      if (cleanupError) {
+        console.error('Failed to clean up orphaned proof upload', cleanupError);
+      }
+
       redirect('/driver?error=' + encodeMessage(insertError.message));
     }
   } catch (error) {

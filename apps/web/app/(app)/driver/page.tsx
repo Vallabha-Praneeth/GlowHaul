@@ -106,6 +106,9 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                     <div className="fine" style={{ marginTop: 6 }}>
                       {run.proofRequired ? 'Proof required before completion.' : 'Proof optional for this run.'}
                     </div>
+                    <div className={`badge ${run.proofActionTone}`} style={{ marginTop: 10 }}>
+                      {run.proofActionCallout}
+                    </div>
                     {run.latestProofReviewNotes ? (
                       <div className="fine" style={{ marginTop: 6 }}>Review note: {run.latestProofReviewNotes}</div>
                     ) : null}
@@ -171,14 +174,26 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
             <div className="stack" style={{ marginTop: 16 }}>
               {data.proofUploads.length > 0 ? data.proofUploads.map((proof) => (
                 <div className="pill" key={proof.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
-                  <div style={{ fontWeight: 700 }}>{proof.fileName}</div>
+                <div style={{ fontWeight: 700 }}>{proof.fileName}</div>
                   <div className="fine">{proof.runTitle}</div>
                   <div className="fine">
                     <span className={`badge ${proof.tone}`} style={{ marginRight: 8 }}>{proof.statusLabel}</span>
                     {proof.capturedAtLabel}
                   </div>
+                  <div className="fine">{proof.nextAction}</div>
                   {proof.reviewedAtLabel ? <div className="fine">Reviewed {proof.reviewedAtLabel}</div> : null}
                   {proof.reviewNotes ? <div className="fine">Operator note: {proof.reviewNotes}</div> : null}
+                  {proof.assetUrl ? (
+                    <a
+                      className="fine"
+                      data-testid={`driver-proof-open-file-${proof.id}`}
+                      href={proof.assetUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open proof file
+                    </a>
+                  ) : null}
                 </div>
               )) : (
                 <div className="fine">No proof assets have been uploaded yet.</div>
