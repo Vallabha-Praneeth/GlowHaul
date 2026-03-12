@@ -48,9 +48,7 @@ export async function waitForRouteValue<T>({
         ? new URL(currentUrl).pathname
         : null;
 
-    if (currentPath === path) {
-      await page.reload();
-    } else {
+    if (currentPath !== path) {
       await page.goto(path);
     }
 

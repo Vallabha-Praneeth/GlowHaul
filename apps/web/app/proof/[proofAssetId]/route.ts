@@ -42,6 +42,10 @@ export async function GET(
     return notFoundResponse();
   }
 
+  if (profile.role !== 'driver' && profile.role !== 'operator' && profile.role !== 'planner') {
+    return notFoundResponse();
+  }
+
   if (profile.role === 'driver') {
     if (asset.driver_id !== profile.id) {
       return notFoundResponse();
@@ -75,12 +79,14 @@ export async function GET(
       return notFoundResponse();
     }
 
-    if (profile.role === 'operator' && booking.operator_organization_id !== profile.organization_id) {
-      return notFoundResponse();
-    }
-
-    if (profile.role === 'planner' && booking.planner_organization_id !== profile.organization_id) {
-      return notFoundResponse();
+    if (profile.role === 'operator') {
+      if (booking.operator_organization_id !== profile.organization_id) {
+        return notFoundResponse();
+      }
+    } else if (profile.role === 'planner') {
+      if (booking.planner_organization_id !== profile.organization_id) {
+        return notFoundResponse();
+      }
     }
   }
 
