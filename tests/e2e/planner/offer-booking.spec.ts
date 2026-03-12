@@ -39,8 +39,30 @@ async function refreshPlannerOffer(page: import('@playwright/test').Page, offerM
     description: `planner offer ${offerMessage}`,
     page,
     path: roleHomePaths.planner,
-    read: async () => page.locator('div.pill').filter({ hasText: offerMessage }).count(),
+    read: async () => page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: offerMessage }).count(),
     until: (count) => count === 1,
+  });
+}
+
+async function refreshPlannerTrackerCard(
+  page: import('@playwright/test').Page,
+  campaignName: string,
+  matcher: (text: string) => boolean
+) {
+  await waitForRouteValue({
+    description: `planner tracker ${campaignName}`,
+    intervalMs: 2_000,
+    page,
+    path: roleHomePaths.planner,
+    timeoutMs: 60_000,
+    read: async () => {
+      const card = page.getByTestId('planner-campaign-tracker').locator('div.pill').filter({ hasText: campaignName }).first();
+      if (await card.count() === 0) {
+        return '';
+      }
+      return (await card.textContent()) ?? '';
+    },
+    until: matcher,
   });
 }
 
@@ -120,10 +142,13 @@ test('planner offer can be submitted and later shows execution and proof state v
     await refreshOperatorCampaign(operatorPage, campaignName);
 
     await page.goto(roleHomePaths.planner);
-    const confirmedOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
+    const confirmedOffer = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(confirmedOffer).toContainText(`Confirmed • ${campaignName}`, { timeout: 15_000 });
     await expect(confirmedOffer).toContainText('Execution: Assigned', { timeout: 15_000 });
     await expect(confirmedOffer).toContainText('Proof:', { timeout: 15_000 });
+    const scheduledTrackerCard = page.getByTestId('planner-campaign-tracker').getByTestId(/planner-tracker-card-/).filter({ hasText: campaignName }).first();
+    await expect(scheduledTrackerCard).toContainText('Scheduled', { timeout: 15_000 });
+    await expect(scheduledTrackerCard).toContainText('Driver dispatched', { timeout: 15_000 });
 
     await driverPage.goto(roleHomePaths.driver);
     const getDriverRunCard = () => driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
@@ -144,8 +169,8 @@ test('planner offer can be submitted and later shows execution and proof state v
       until: (text) => text.includes('En Route'),
     });
 
-    await page.goto(roleHomePaths.planner);
-    const executingOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
+    await refreshPlannerTrackerCard(page, campaignName, (text) => text.includes('En route'));
+    const executingOffer = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(executingOffer).toContainText('Execution: En Route', { timeout: 15_000 });
 
     const uploadInput = getDriverRunCard().getByTestId(/driver-proof-file-input-/);
@@ -165,10 +190,12 @@ test('planner offer can be submitted and later shows execution and proof state v
       until: (count) => count === 1,
     });
 
-    await page.goto(roleHomePaths.planner);
-    const proofVisibleOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
+    await refreshPlannerTrackerCard(page, campaignName, (text) => text.includes('Proof review'));
+    const proofVisibleOffer = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(proofVisibleOffer).toContainText('Uploaded', { timeout: 15_000 });
     await expect(proofVisibleOffer).toContainText('proof logged', { timeout: 15_000 });
+    const proofReviewTrackerCard = page.getByTestId('planner-campaign-tracker').getByTestId(/planner-tracker-card-/).filter({ hasText: campaignName }).first();
+    await expect(proofReviewTrackerCard).toContainText('Proof review', { timeout: 15_000 });
   } finally {
     await operatorContext.close();
     await driverContext.close();
