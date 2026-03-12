@@ -162,6 +162,76 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
           {notice ? <div className="badge success">{decodeURIComponent(notice)}</div> : null}
           {error ? <div className="badge warning">{decodeURIComponent(error)}</div> : null}
         </form>
+
+        {data.kpis.length > 0 ? (
+          <div className="kpi-grid" style={{ marginTop: 24 }}>
+            {data.kpis.map((item) => (
+              <div className="card" key={item.label}>
+                <div className="fine">{item.label}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, marginTop: 10 }}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="card" data-testid="planner-campaign-tracker">
+        <div className="section-header">
+          <div>
+            <h2 style={{ margin: 0 }}>Campaign tracker</h2>
+            <span className="fine">Booked, live, and proof-review visibility for every planner-side campaign.</span>
+          </div>
+          <span className="fine">Execution board</span>
+        </div>
+
+        <div className="card-grid" style={{ marginTop: 18 }}>
+          {data.trackerColumns.map((column) => (
+            <section className="surface" data-testid={`planner-tracker-column-${column.id}`} key={column.id} style={{ padding: 18 }}>
+              <div className="section-header">
+                <div>
+                  <div style={{ fontWeight: 700 }}>{column.label}</div>
+                  <div className="fine" style={{ marginTop: 6 }}>{column.countLabel}</div>
+                </div>
+              </div>
+
+              <div className="stack" style={{ marginTop: 14 }}>
+                {column.items.length > 0 ? column.items.map((offer) => (
+                  <div className="pill" data-testid={`planner-tracker-card-${offer.id}`} key={offer.id} style={{ alignItems: 'flex-start', display: 'grid', gap: 10 }}>
+                    <div className="section-header" style={{ alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{offer.bookingLabel ?? offer.slotTitle}</div>
+                        <div className="fine">{offer.slotTitle} • {offer.amountLabel}</div>
+                      </div>
+                      <span className={`badge ${offer.stageTone}`}>{offer.stageLabel}</span>
+                    </div>
+
+                    <div className="fine">{offer.summary}</div>
+                    <div className="fine">Next: {offer.nextAction}</div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {offer.timeline.map((step) => (
+                        <span
+                          className={
+                            step.state === 'complete'
+                              ? 'badge success'
+                              : step.state === 'current'
+                                ? 'badge warning'
+                                : 'pill'
+                          }
+                          key={step.label}
+                        >
+                          {step.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="fine">No campaigns in this lane yet.</div>
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
       </section>
 
       <div className="card-grid">
@@ -198,8 +268,13 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
           <div className="stack" data-testid="planner-submitted-offers-list" style={{ marginTop: 18 }}>
             {data.submittedOffers.length > 0 ? data.submittedOffers.map((offer) => (
               <div className="pill" data-testid={`planner-submitted-offer-${offer.id}`} key={offer.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
-                <div style={{ fontWeight: 700 }}>{offer.slotTitle}</div>
-                <div className="fine">{offer.amountLabel} • {offer.statusLabel} • {offer.updatedLabel}</div>
+                <div className="section-header" style={{ alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{offer.slotTitle}</div>
+                    <div className="fine">{offer.amountLabel} • {offer.statusLabel} • {offer.updatedLabel}</div>
+                  </div>
+                  <span className={`badge ${offer.stageTone}`}>{offer.stageLabel}</span>
+                </div>
                 {offer.bookingLabel ? <div className="fine">{offer.bookingLabel}</div> : null}
                 {offer.executionLabel ? <div className="fine">Execution: {offer.executionLabel}</div> : null}
                 {offer.proofLabel ? (
@@ -210,6 +285,24 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
                     </span>
                   </div>
                 ) : null}
+                <div className="fine">{offer.summary}</div>
+                <div className="fine">Next: {offer.nextAction}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {offer.timeline.map((step) => (
+                    <span
+                      className={
+                        step.state === 'complete'
+                          ? 'badge success'
+                          : step.state === 'current'
+                            ? 'badge warning'
+                            : 'pill'
+                      }
+                      key={step.label}
+                    >
+                      {step.label}
+                    </span>
+                  ))}
+                </div>
                 {offer.message ? <div className="fine">{offer.message}</div> : null}
                 {offer.operatorNote ? <div className="fine">Operator note: {offer.operatorNote}</div> : null}
               </div>
@@ -255,6 +348,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
                 </div>
               ) : null}
               {slot.operatorNote ? <div className="fine" style={{ marginTop: 10 }}>Operator note: {slot.operatorNote}</div> : null}
+              {slot.trackingNote ? <div className="fine" style={{ marginTop: 10 }}>Next: {slot.trackingNote}</div> : null}
 
               {slot.isActionLocked ? (
                 <div className="fine" style={{ marginTop: 14 }}>

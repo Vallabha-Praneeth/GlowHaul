@@ -24,6 +24,7 @@ test.describe('hosted planner smoke', () => {
     await expect(page.getByRole('heading', { name: /search mobile inventory/i })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
     await expect(page.getByTestId('planner-apply-filters-submit')).toBeVisible();
+    await expect(page.getByTestId('planner-campaign-tracker')).toBeVisible();
     await expect(page.getByTestId('planner-map-provider-label')).toBeVisible();
     await expect(page.getByTestId('planner-submitted-offers-list')).toBeVisible();
     await expect(page.getByTestId(/planner-submitted-offer-/).first()).toBeVisible();

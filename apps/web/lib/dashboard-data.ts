@@ -116,6 +116,13 @@ export type PlannerFilterPill = {
   value: string;
 };
 
+export type PlannerTimelineStepState = 'complete' | 'current' | 'upcoming';
+
+export type PlannerTimelineStep = {
+  label: string;
+  state: PlannerTimelineStepState;
+};
+
 export type PlannerAvailableSlot = {
   bookingLabel: string | null;
   detail: string;
@@ -131,6 +138,7 @@ export type PlannerAvailableSlot = {
   statusLabel: string;
   statusTone: BadgeTone;
   submittedOfferStatus: string | null;
+  trackingNote: string | null;
   title: string;
 };
 
@@ -140,13 +148,25 @@ export type PlannerSubmittedOffer = {
   executionLabel: string | null;
   id: string;
   message: string | null;
+  nextAction: string;
   operatorNote: string | null;
   proofLabel: string | null;
   proofTone: BadgeTone | null;
+  stageLabel: string;
+  stageTone: BadgeTone;
   slotTitle: string;
   statusLabel: string;
   statusTone: BadgeTone;
+  summary: string;
+  timeline: PlannerTimelineStep[];
   updatedLabel: string;
+};
+
+export type PlannerTrackerColumn = {
+  countLabel: string;
+  id: 'booked' | 'closeout' | 'in_flight' | 'needs_action';
+  items: PlannerSubmittedOffer[];
+  label: string;
 };
 
 export type PlannerMarketplaceData = {
@@ -154,9 +174,11 @@ export type PlannerMarketplaceData = {
   badgeLabel: string;
   filterPills: PlannerFilterPill[];
   filterState: PlannerMarketplaceFilters;
+  kpis: DashboardKpi[];
   regions: RegionCode[];
   sourceLabel: string;
   submittedOffers: PlannerSubmittedOffer[];
+  trackerColumns: PlannerTrackerColumn[];
   title: string;
 };
 
@@ -294,6 +316,155 @@ function buildPlannerExecutionLabels(
     executionLabel,
     proofLabel,
     proofTone,
+  };
+}
+
+function buildPlannerTimeline(
+  currentStep: number,
+  finalStepLabel: string,
+  isComplete = false
+): PlannerTimelineStep[] {
+  const labels = ['Offer submitted', 'Booked', 'Driver dispatched', 'Route live', finalStepLabel];
+
+  return labels.map((label, index) => {
+    if (isComplete) {
+      return { label, state: 'complete' as const };
+    }
+
+    if (index < currentStep) {
+      return { label, state: 'complete' as const };
+    }
+
+    if (index === currentStep) {
+      return { label, state: 'current' as const };
+    }
+
+    return { label, state: 'upcoming' as const };
+  });
+}
+
+function buildPlannerCampaignTracking(
+  offer: Pick<OfferRow, 'status'> | null | undefined,
+  booking: Pick<BookingRow, 'campaign_name' | 'status'> | null | undefined,
+  run: Pick<RunRow, 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'> | null | undefined,
+  proofs: Pick<ProofAssetRow, 'status'>[] = []
+) {
+  const latestProof = proofs[0] ?? null;
+  const hasApprovedProof = latestProof?.status === 'approved';
+  const execution = buildPlannerExecutionLabels(booking, run, proofs);
+  const finalStepLabel = run?.proof_required ? 'Proof approved' : 'Campaign closed';
+
+  if (
+    hasApprovedProof ||
+    ((booking?.status === 'completed' || run?.status === 'completed') && (!run?.proof_required || hasApprovedProof))
+  ) {
+    return {
+      bucket: 'closeout' as const,
+      nextAction: 'Campaign is closed. Pull proof and route notes into the client recap.',
+      stageLabel: 'Closed',
+      stageTone: 'success' as const,
+      summary: hasApprovedProof
+        ? 'Proof has been approved and the campaign is ready for wrap-up.'
+        : 'The route is complete with no further proof action required.',
+      timeline: buildPlannerTimeline(4, finalStepLabel, true),
+      ...execution,
+    };
+  }
+
+  if (latestProof?.status === 'rejected') {
+    return {
+      bucket: 'needs_action' as const,
+      nextAction: 'Coordinate a fresh proof upload with the operator and driver before closeout.',
+      stageLabel: 'Proof changes requested',
+      stageTone: 'warning' as const,
+      summary: 'Operator review rejected the latest proof submission and requested another pass.',
+      timeline: buildPlannerTimeline(4, finalStepLabel),
+      ...execution,
+    };
+  }
+
+  if (latestProof?.status === 'uploaded') {
+    return {
+      bucket: 'closeout' as const,
+      nextAction: 'Wait for operator proof review before sending the campaign recap to the client.',
+      stageLabel: 'Proof review',
+      stageTone: 'warning' as const,
+      summary: 'Proof is uploaded and sitting in operator review for final acceptance.',
+      timeline: buildPlannerTimeline(4, finalStepLabel),
+      ...execution,
+    };
+  }
+
+  if (run?.status === 'live') {
+    return {
+      bucket: 'in_flight' as const,
+      nextAction: run.proof_required
+        ? 'Monitor route completion and watch for proof upload once the truck wraps the live window.'
+        : 'Monitor route completion and prep the recap as soon as the live window ends.',
+      stageLabel: 'Route live',
+      stageTone: 'success' as const,
+      summary: 'The truck is live on route right now.',
+      timeline: buildPlannerTimeline(3, finalStepLabel),
+      ...execution,
+    };
+  }
+
+  if (run?.status === 'en_route') {
+    return {
+      bucket: 'in_flight' as const,
+      nextAction: 'Track for the live start and confirm the driver captures proof before closeout.',
+      stageLabel: 'En route',
+      stageTone: 'warning' as const,
+      summary: 'The driver is rolling to the campaign window.',
+      timeline: buildPlannerTimeline(3, finalStepLabel),
+      ...execution,
+    };
+  }
+
+  if (run?.status === 'assigned') {
+    return {
+      bucket: 'booked' as const,
+      nextAction: 'Dispatch is locked. Watch for the truck to go en route and brief the client on schedule.',
+      stageLabel: 'Scheduled',
+      stageTone: 'success' as const,
+      summary: 'A driver has been assigned and the route timing is locked.',
+      timeline: buildPlannerTimeline(2, finalStepLabel),
+      ...execution,
+    };
+  }
+
+  if (booking) {
+    return {
+      bucket: 'booked' as const,
+      nextAction: 'Operator has booked the slot. Driver dispatch details are the next milestone to watch.',
+      stageLabel: 'Dispatch pending',
+      stageTone: 'warning' as const,
+      summary: 'The booking is confirmed, but the dispatch plan is not finalized yet.',
+      timeline: buildPlannerTimeline(1, finalStepLabel),
+      ...execution,
+    };
+  }
+
+  if (offer?.status === 'rejected' || offer?.status === 'withdrawn' || offer?.status === 'expired') {
+    return {
+      bucket: 'needs_action' as const,
+      nextAction: 'Adjust rate, timing, or notes and submit a new offer to reopen this campaign.',
+      stageLabel: 'Needs rework',
+      stageTone: 'warning' as const,
+      summary: 'This offer will not progress until a new planner-side decision is made.',
+      timeline: buildPlannerTimeline(0, finalStepLabel),
+      ...execution,
+    };
+  }
+
+  return {
+    bucket: 'needs_action' as const,
+    nextAction: 'Wait for operator triage or follow up on timing and rate if the campaign is urgent.',
+    stageLabel: 'Awaiting review',
+    stageTone: 'warning' as const,
+    summary: 'The offer is sitting in the operator review queue.',
+    timeline: buildPlannerTimeline(0, finalStepLabel),
+    ...execution,
   };
 }
 
@@ -603,9 +774,16 @@ export async function getPlannerMarketplaceData(
     badgeLabel: '0 slots visible',
     filterPills: [],
     filterState: filters,
+    kpis: [],
     regions: ['DFW'],
     sourceLabel: 'Authenticated planner view',
     submittedOffers: [],
+    trackerColumns: [
+      { countLabel: '0 campaigns', id: 'needs_action', items: [], label: 'Needs action' },
+      { countLabel: '0 campaigns', id: 'booked', items: [], label: 'Booked pipeline' },
+      { countLabel: '0 campaigns', id: 'in_flight', items: [], label: 'In flight' },
+      { countLabel: '0 campaigns', id: 'closeout', items: [], label: 'Closeout' },
+    ],
     title: 'Search mobile inventory fast.',
   };
 
@@ -753,6 +931,66 @@ export async function getPlannerMarketplaceData(
     { label: 'My active offers', value: String(offers.filter((offer) => offer.status === 'pending').length) },
   ];
 
+  const submittedOffers = offers.map((offer) => {
+    const booking = bookingByOfferId.get(offer.id);
+    const slot = slots.find((entry) => entry.id === offer.slot_id);
+    const truck = slot ? truckMap.get(slot.truck_id) : null;
+    const run = booking ? runByBookingId.get(booking.id) : null;
+    const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
+    const tracking = buildPlannerCampaignTracking(offer, booking, run, proofs);
+
+    return {
+      amountLabel: formatCurrency(offer.amount_cents),
+      bookingLabel: booking ? `${formatStatus(booking.status)} • ${booking.campaign_name}` : null,
+      executionLabel: tracking.executionLabel,
+      id: offer.id,
+      message: offer.message,
+      nextAction: tracking.nextAction,
+      operatorNote: offer.operator_note ?? booking?.internal_note ?? null,
+      proofLabel: tracking.proofLabel,
+      proofTone: tracking.proofTone,
+      slotTitle: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
+      stageLabel: tracking.stageLabel,
+      stageTone: tracking.stageTone,
+      statusLabel: formatStatus(offer.status),
+      statusTone: getStatusTone(offer.status),
+      summary: tracking.summary,
+      timeline: tracking.timeline,
+      updatedLabel: dateTimeFormatter.format(new Date(offer.updated_at)),
+    };
+  });
+
+  const trackerColumns: PlannerTrackerColumn[] = [
+    { countLabel: '0 campaigns', id: 'needs_action', items: [], label: 'Needs action' },
+    { countLabel: '0 campaigns', id: 'booked', items: [], label: 'Booked pipeline' },
+    { countLabel: '0 campaigns', id: 'in_flight', items: [], label: 'In flight' },
+    { countLabel: '0 campaigns', id: 'closeout', items: [], label: 'Closeout' },
+  ];
+
+  submittedOffers.forEach((offer) => {
+    const tracking = offers.find((item) => item.id === offer.id);
+    const booking = bookingByOfferId.get(offer.id);
+    const run = booking ? runByBookingId.get(booking.id) : null;
+    const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
+    const bucket = buildPlannerCampaignTracking(tracking, booking, run, proofs).bucket;
+    trackerColumns.find((column) => column.id === bucket)?.items.push(offer);
+  });
+
+  trackerColumns.forEach((column) => {
+    column.countLabel = formatPlural(column.items.length, 'campaign');
+  });
+
+  const proofReviewCount = submittedOffers.filter((offer) => offer.stageLabel === 'Proof review' || offer.stageLabel === 'Proof changes requested').length;
+  const inFlightCount = submittedOffers.filter((offer) => offer.stageLabel === 'En route' || offer.stageLabel === 'Route live').length;
+  const bookedCount = submittedOffers.filter((offer) => offer.stageLabel === 'Dispatch pending' || offer.stageLabel === 'Scheduled').length;
+  const closedCount = submittedOffers.filter((offer) => offer.stageLabel === 'Closed').length;
+  const kpis: DashboardKpi[] = [
+    { label: 'Offers in review', value: String(submittedOffers.filter((offer) => offer.stageLabel === 'Awaiting review').length) },
+    { label: 'Booked pipeline', value: String(bookedCount) },
+    { label: 'Routes moving', value: String(inFlightCount) },
+    { label: 'Proof / closeout', value: String(proofReviewCount + closedCount) },
+  ];
+
   return {
     availableSlots: filteredSlots.map((slot) => {
       const truck = truckMap.get(slot.truck_id);
@@ -760,7 +998,7 @@ export async function getPlannerMarketplaceData(
       const booking = existingOffer ? bookingByOfferId.get(existingOffer.id) : bookingBySlotId.get(slot.id);
       const run = booking ? runByBookingId.get(booking.id) : null;
       const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
-      const execution = buildPlannerExecutionLabels(booking, run, proofs);
+      const tracking = buildPlannerCampaignTracking(existingOffer, booking, run, proofs);
       const isActionLocked =
         slot.status === 'booked' ||
         (existingOffer ? ['accepted', 'pending'].includes(existingOffer.status) : false);
@@ -768,50 +1006,32 @@ export async function getPlannerMarketplaceData(
       return {
         bookingLabel: booking ? `${formatStatus(booking.status)} • ${booking.campaign_name}` : null,
         detail: buildSlotSummary(slot),
-        executionLabel: execution.executionLabel,
+        executionLabel: tracking.executionLabel,
         id: slot.id,
         isActionLocked,
         message: slot.campaign_notes,
         operatorNote: existingOffer?.operator_note ?? booking?.internal_note ?? null,
-        proofLabel: execution.proofLabel,
-        proofTone: execution.proofTone,
+        proofLabel: tracking.proofLabel,
+        proofTone: tracking.proofTone,
         rateDollars: (slot.rate_cents / 100).toFixed(0),
         status: slot.status,
         statusLabel: formatStatus(slot.status),
         statusTone: getStatusTone(slot.status),
         submittedOfferStatus: existingOffer ? formatStatus(existingOffer.status) : null,
+        trackingNote: existingOffer ? tracking.nextAction : null,
         title: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
       };
     }),
     badgeLabel: `${formatPlural(filteredSlots.length, 'slot')} visible`,
     filterPills,
     filterState: filters,
+    kpis,
     regions: regions.length > 0 ? regions : fallback.regions,
     sourceLabel: organization?.name
       ? `Authenticated planner view for ${organization.name}`
       : 'Authenticated planner view',
-    submittedOffers: offers.map((offer) => {
-      const booking = bookingByOfferId.get(offer.id);
-      const slot = slots.find((entry) => entry.id === offer.slot_id);
-      const truck = slot ? truckMap.get(slot.truck_id) : null;
-      const run = booking ? runByBookingId.get(booking.id) : null;
-      const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
-      const execution = buildPlannerExecutionLabels(booking, run, proofs);
-      return {
-        amountLabel: formatCurrency(offer.amount_cents),
-        bookingLabel: booking ? `${formatStatus(booking.status)} • ${booking.campaign_name}` : null,
-        executionLabel: execution.executionLabel,
-        id: offer.id,
-        message: offer.message,
-        operatorNote: offer.operator_note ?? booking?.internal_note ?? null,
-        proofLabel: execution.proofLabel,
-        proofTone: execution.proofTone,
-        slotTitle: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
-        statusLabel: formatStatus(offer.status),
-        statusTone: getStatusTone(offer.status),
-        updatedLabel: dateTimeFormatter.format(new Date(offer.updated_at)),
-      };
-    }),
+    submittedOffers,
+    trackerColumns,
     title: 'Search mobile inventory fast.',
   };
 }
