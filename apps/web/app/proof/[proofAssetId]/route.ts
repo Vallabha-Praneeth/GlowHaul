@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { recordIdSchema } from '@glowhaul/core';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
 import { createAdminSupabaseClient } from '../../../lib/supabase/admin';
 
-const recordIdPattern = /^[0-9a-fA-F-]{36}$/;
-
 function notFoundResponse() {
   return new NextResponse('Not found', { status: 404 });
+}
+
+function serverErrorResponse(message = 'Unable to open proof asset.') {
+  return new NextResponse(message, { status: 500 });
 }
 
 export async function GET(
@@ -14,7 +17,7 @@ export async function GET(
 ) {
   const { proofAssetId } = await context.params;
 
-  if (!recordIdPattern.test(proofAssetId)) {
+  if (!recordIdSchema.safeParse(proofAssetId).success) {
     return notFoundResponse();
   }
 
@@ -25,11 +28,15 @@ export async function GET(
     return new NextResponse('Supabase admin client is not configured.', { status: 503 });
   }
 
-  const { data: asset } = await admin
+  const { data: asset, error: assetError } = await admin
     .from('proof_assets')
     .select('id, driver_id, run_id, storage_path')
     .eq('id', proofAssetId)
     .maybeSingle();
+
+  if (assetError) {
+    return serverErrorResponse();
+  }
 
   if (!asset) {
     return notFoundResponse();
@@ -40,21 +47,29 @@ export async function GET(
       return notFoundResponse();
     }
   } else {
-    const { data: run } = await admin
+    const { data: run, error: runError } = await admin
       .from('runs')
       .select('id, booking_id')
       .eq('id', asset.run_id)
       .maybeSingle();
 
+    if (runError) {
+      return serverErrorResponse();
+    }
+
     if (!run) {
       return notFoundResponse();
     }
 
-    const { data: booking } = await admin
+    const { data: booking, error: bookingError } = await admin
       .from('bookings')
       .select('id, operator_organization_id, planner_organization_id')
       .eq('id', run.booking_id)
       .maybeSingle();
+
+    if (bookingError) {
+      return serverErrorResponse();
+    }
 
     if (!booking) {
       return notFoundResponse();
@@ -74,7 +89,7 @@ export async function GET(
     .createSignedUrl(asset.storage_path, 60);
 
   if (error || !signedUrl?.signedUrl) {
-    return new NextResponse('Unable to open proof asset.', { status: 500 });
+    return serverErrorResponse();
   }
 
   return NextResponse.redirect(signedUrl.signedUrl);

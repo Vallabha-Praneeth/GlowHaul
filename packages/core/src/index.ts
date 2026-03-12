@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const roleSchema = z.enum(['operator', 'planner', 'driver']);
+export const recordIdSchema = z.string().regex(/^[0-9a-fA-F-]{36}$/, 'Invalid id.');
 
 export const slotCardSchema = z.object({
   id: z.string(),

@@ -24,6 +24,13 @@ function getDefaultDateTimeInput(hoursFromNow: number) {
   return new Date(Date.now() + hoursFromNow * 60 * 60 * 1000).toISOString().slice(0, 16);
 }
 
+function formatStatusLabel(value: string) {
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 export default async function OperatorPage({ searchParams }: OperatorPageProps) {
   const data = await getOperatorDashboardData();
   const params = (await searchParams) ?? {};
@@ -329,7 +336,8 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                 </label>
 
                 <div className="fine">
-                  Dispatch state: {booking.bookingStatus} booking{booking.runStatus ? ` • ${booking.runStatus} run` : ''}
+                  Dispatch state: {formatStatusLabel(booking.bookingStatus)} booking
+                  {booking.runStatus ? ` • ${formatStatusLabel(booking.runStatus)} run` : ''}
                 </div>
 
                 <button className="button-secondary" data-testid="operator-update-campaign-submit" type="submit">

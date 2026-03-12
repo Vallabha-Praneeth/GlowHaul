@@ -37,9 +37,9 @@ export async function waitForRouteValue<T>({
   read,
   timeoutMs = 60_000,
   until,
-}: WaitForRouteValueOptions<T>) {
+}: WaitForRouteValueOptions<T>): Promise<T> {
   const deadline = Date.now() + timeoutMs;
-  let lastValue;
+  let lastValue: T | undefined;
 
   while (Date.now() < deadline) {
     const currentUrl = page.url();

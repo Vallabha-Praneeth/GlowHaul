@@ -310,7 +310,7 @@ function buildOperatorDispatchState(
     };
   }
 
-  if (!run || !run.status || booking.status === 'confirmed') {
+  if (!run || !run.status) {
     return {
       dispatchStageLabel: 'Dispatch pending',
       dispatchStageTone: 'warning' as const,
@@ -349,6 +349,16 @@ function buildOperatorDispatchState(
         : 'Campaign is live. Close the run when the route ends.',
       proofReviewLabel: run.proof_required ? 'Awaiting live proof' : 'Proof optional',
       proofReviewTone: run.proof_required ? 'warning' as const : 'success' as const,
+    };
+  }
+
+  if (run.status === 'issue') {
+    return {
+      dispatchStageLabel: 'Issue',
+      dispatchStageTone: 'warning' as const,
+      nextAction: 'The route is blocked by an issue. Investigate the problem, update the plan, and move the run back to execution when ready.',
+      proofReviewLabel: proofCount > 0 ? `${formatPlural(proofCount, 'proof')} logged` : 'No proof uploaded',
+      proofReviewTone: proofCount > 0 ? 'success' as const : 'warning' as const,
     };
   }
 
