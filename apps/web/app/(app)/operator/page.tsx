@@ -225,7 +225,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
       </div>
 
       <div className="card-grid">
-        <section className="card">
+        <section className="card" data-testid="operator-dispatch-board">
           <div className="section-header">
             <div>
               <h2 style={{ margin: 0 }}>Active campaigns</h2>
@@ -249,12 +249,15 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                     </div>
                   </div>
                   <div className="stack" style={{ alignItems: 'flex-end', gap: 8 }}>
-                    <span className={`badge ${booking.bookingStatus === 'confirmed' ? 'warning' : 'success'}`}>
-                      {booking.bookingStatus}
-                    </span>
+                    <span className={`badge ${booking.dispatchStageTone}`}>{booking.dispatchStageLabel}</span>
                     <div className="fine">{booking.driverLabel}</div>
                     <div className="fine">{booking.proofCountLabel} • {booking.latestProofStatusLabel}</div>
                   </div>
+                </div>
+
+                <div className="pill" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{booking.nextAction}</span>
+                  <span className={`badge ${booking.proofReviewTone}`}>{booking.proofReviewLabel}</span>
                 </div>
 
                 <div className="card-grid">
@@ -325,6 +328,10 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                   />
                 </label>
 
+                <div className="fine">
+                  Dispatch state: {booking.bookingStatus} booking{booking.runStatus ? ` • ${booking.runStatus} run` : ''}
+                </div>
+
                 <button className="button-secondary" data-testid="operator-update-campaign-submit" type="submit">
                   Save dispatch plan
                 </button>
@@ -335,7 +342,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
           </div>
         </section>
 
-        <section className="card">
+        <section className="card" data-testid="operator-proof-review-queue">
           <div className="section-header">
             <div>
               <h2 style={{ margin: 0 }}>Proof review queue</h2>
@@ -358,7 +365,16 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                       {proof.driverLabel} • {proof.uploadedAtLabel}
                     </div>
                   </div>
-                  <span className={`badge ${proof.canReview ? 'warning' : 'success'}`}>{proof.statusLabel}</span>
+                  <span className={`badge ${proof.reviewTone}`}>{proof.statusLabel}</span>
+                </div>
+
+                <div className="pill" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{proof.nextAction}</span>
+                  {proof.assetUrl ? (
+                    <a className="button-secondary" href={proof.assetUrl} rel="noreferrer" target="_blank">
+                      View proof
+                    </a>
+                  ) : null}
                 </div>
 
                 <label className="form-field">
@@ -381,7 +397,10 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                     </button>
                   </div>
                 ) : (
-                  <div className="fine">Review already completed for this upload.</div>
+                  <div className="fine">
+                    Review already completed for this upload.
+                    {proof.reviewedAtLabel ? ` Reviewed ${proof.reviewedAtLabel}.` : ''}
+                  </div>
                 )}
               </form>
             )) : (

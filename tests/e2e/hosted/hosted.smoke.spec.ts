@@ -10,6 +10,8 @@ test.describe('hosted operator smoke', () => {
     await expect(page.getByRole('heading', { name: /control room/i })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
     await expect(page.getByTestId('operator-create-slot-form')).toBeVisible();
+    await expect(page.getByTestId('operator-dispatch-board')).toBeVisible();
+    await expect(page.getByTestId('operator-proof-review-queue')).toBeVisible();
     await expect(page.getByTestId('operator-incoming-offers-list')).toBeVisible();
     await expect(page.getByTestId('operator-accept-offer-submit').first()).toBeVisible();
   });
@@ -42,5 +44,6 @@ test.describe('hosted driver smoke', () => {
     const firstRun = page.getByTestId(/driver-run-/).first();
     await expect(firstRun).toBeVisible();
     await expect(firstRun.getByTestId(/driver-action-en_route-/)).toBeVisible();
+    await expect(firstRun.getByText(/Proof required before completion|Proof optional for this run/)).toBeVisible();
   });
 });

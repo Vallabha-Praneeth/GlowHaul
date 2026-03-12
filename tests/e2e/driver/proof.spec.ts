@@ -109,6 +109,8 @@ test('driver can upload proof into Supabase storage and receive operator review 
       return (await driverProofCard.textContent()) ?? '';
     }, { timeout: 30_000 }).toContain('Approved');
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText(reviewNote, { timeout: 30_000 });
+    await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText('Approved proof is ready for planner share.', { timeout: 30_000 });
+    await expect(page.locator('div.pill').filter({ hasText: fileName }).first().getByRole('link', { name: 'Open proof file' })).toBeVisible();
   } finally {
     await operatorContext.close();
   }
@@ -187,6 +189,7 @@ test('driver can progress an assigned run through execution states', async ({ br
 
     await requestSubmit(getRunCard().locator('form').first());
     await refreshDriverRunCardUntil(page, campaignName, 'Completed');
+    await expect(getRunCard()).toContainText('Proof uploaded. Waiting for operator review.');
 
     await plannerPage.goto(roleHomePaths.planner);
     const completedOffer = plannerPage.locator('div.pill').filter({ hasText: campaignName }).first();

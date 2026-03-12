@@ -23,6 +23,19 @@ function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
 }
 
+function sleep(timeoutMs: number) {
+  return new Promise((resolve) => setTimeout(resolve, timeoutMs));
+}
+
+function isRetryableStorageError(message: string) {
+  const normalized = message.toLowerCase();
+
+  return normalized.includes('invalid response was received from the upstream server')
+    || normalized.includes('error status 502')
+    || normalized.includes('error status 503')
+    || normalized.includes('error sending request');
+}
+
 export async function uploadDriverProof(formData: FormData) {
   const runId = formData.get('runId');
   const fileValue = formData.get('proofFile');
@@ -56,13 +69,30 @@ export async function uploadDriverProof(formData: FormData) {
     const extension = sanitizeFileName(fileValue.name || 'proof-upload');
     const storagePath = `${profile.id}/${runId}/${Date.now()}-${extension}`;
     const mimeType = fileValue.type || 'application/octet-stream';
-    const { error: uploadError } = await supabase.storage.from('proof-uploads').upload(storagePath, fileValue, {
-      contentType: mimeType,
-      upsert: false,
-    });
+    const fileBytes = new Uint8Array(await fileValue.arrayBuffer());
+    let uploadErrorMessage: string | null = null;
 
-    if (uploadError) {
-      redirect('/driver?error=' + encodeMessage(uploadError.message));
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const { error: uploadError } = await supabase.storage.from('proof-uploads').upload(storagePath, fileBytes, {
+        contentType: mimeType,
+        upsert: false,
+      });
+
+      if (!uploadError) {
+        uploadErrorMessage = null;
+        break;
+      }
+
+      uploadErrorMessage = uploadError.message;
+      if (!isRetryableStorageError(uploadError.message) || attempt === 3) {
+        break;
+      }
+
+      await sleep(attempt * 500);
+    }
+
+    if (uploadErrorMessage) {
+      redirect('/driver?error=' + encodeMessage(uploadErrorMessage));
     }
 
     const proofPayload: ProofAssetInsert = {
