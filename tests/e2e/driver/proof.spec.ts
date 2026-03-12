@@ -80,13 +80,13 @@ test('driver can upload proof into Supabase storage and receive operator review 
     await gotoRoleHome();
     await expect(page.getByTestId('live-sync-badge')).toBeVisible();
 
-    const uploadInput = page.getByTestId('driver-proof-file-input').first();
+    const uploadInput = page.getByTestId(/driver-proof-file-input-/).first();
     await uploadInput.setInputFiles({
       buffer: Buffer.from('fake-jpeg-proof'),
       mimeType: 'image/jpeg',
       name: fileName,
     });
-    await page.getByTestId('driver-proof-upload-button').first().click();
+    await page.getByTestId(/driver-proof-upload-button-/).first().click();
 
     await expect.poll(async () => {
       await page.goto(roleHomePaths.driver);
@@ -168,13 +168,13 @@ test('driver can progress an assigned run through execution states', async ({ br
     await getRunCard().getByRole('button', { name: 'Complete run' }).click();
     await refreshDriverRunCardUntil(page, campaignName, 'Live');
 
-    const uploadInput = getRunCard().getByTestId('driver-proof-file-input');
+    const uploadInput = getRunCard().getByTestId(/driver-proof-file-input-/);
     await uploadInput.setInputFiles({
       buffer: Buffer.from('driver-execution-proof'),
       mimeType: 'image/jpeg',
       name: proofFileName,
     });
-    await getRunCard().getByTestId('driver-proof-upload-button').click();
+    await getRunCard().getByTestId(/driver-proof-upload-button-/).click();
     await waitForRouteValue({
       description: `driver proof upload ${proofFileName}`,
       intervalMs: 2_000,

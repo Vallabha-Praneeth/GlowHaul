@@ -8,11 +8,29 @@ for (const name of requiredEnv) {
 }
 
 const apiBase = 'https://api.vercel.com/v6/deployments';
-const maxAttempts = Number(process.env.VERCEL_DEPLOYMENT_POLL_ATTEMPTS ?? '40');
-const sleepMs = Number(process.env.VERCEL_DEPLOYMENT_POLL_INTERVAL_MS ?? '15000');
-const fetchRetryAttempts = Number(process.env.VERCEL_DEPLOYMENT_FETCH_RETRY_ATTEMPTS ?? '5');
-const fetchRetryBaseSleepMs = Number(process.env.VERCEL_DEPLOYMENT_FETCH_RETRY_BASE_MS ?? '1000');
-const fetchTimeoutMs = Number(process.env.VERCEL_DEPLOYMENT_FETCH_TIMEOUT_MS ?? '10000');
+
+function parsePositiveInt(envName, defaultValue) {
+  const rawValue = process.env[envName];
+
+  if (rawValue === undefined) {
+    return defaultValue;
+  }
+
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    console.error(`${envName} must be a positive integer. Received: ${rawValue}`);
+    process.exit(1);
+  }
+
+  return Math.floor(parsed);
+}
+
+const maxAttempts = parsePositiveInt('VERCEL_DEPLOYMENT_POLL_ATTEMPTS', 40);
+const sleepMs = parsePositiveInt('VERCEL_DEPLOYMENT_POLL_INTERVAL_MS', 15000);
+const fetchRetryAttempts = parsePositiveInt('VERCEL_DEPLOYMENT_FETCH_RETRY_ATTEMPTS', 5);
+const fetchRetryBaseSleepMs = parsePositiveInt('VERCEL_DEPLOYMENT_FETCH_RETRY_BASE_MS', 1000);
+const fetchTimeoutMs = parsePositiveInt('VERCEL_DEPLOYMENT_FETCH_TIMEOUT_MS', 10000);
 
 function sleep(timeout) {
   return new Promise((resolve) => setTimeout(resolve, timeout));
