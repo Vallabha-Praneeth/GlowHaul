@@ -65,6 +65,7 @@ test('planner marketplace exposes free-first map strategy and filter controls', 
     await expect(page.getByTestId('live-sync-badge')).toBeVisible();
     await expect(page.getByTestId('planner-campaign-health')).toBeVisible();
     await expect(page.getByTestId('planner-attention-queue')).toBeVisible();
+    await expect(page.getByTestId('planner-recent-history')).toBeVisible();
     await page.getByLabel('Search').fill(slotNote);
     await page.getByLabel('Region').selectOption('Houston');
     await page.getByRole('button', { name: 'Apply filters' }).click();

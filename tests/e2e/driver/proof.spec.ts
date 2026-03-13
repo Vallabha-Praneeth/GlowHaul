@@ -75,6 +75,7 @@ test('driver can upload proof into Supabase storage and receive operator review 
     await expect(page.getByTestId('live-sync-badge')).toBeVisible();
     await expect(page.getByTestId('driver-shift-summary')).toBeVisible();
     await expect(page.getByTestId('driver-priority-queue')).toBeVisible();
+    await expect(page.getByTestId('driver-recent-history')).toBeVisible();
 
     const uploadInput = page.getByTestId(/driver-proof-file-input-/).first();
     await uploadInput.setInputFiles({
@@ -116,6 +117,7 @@ test('driver can upload proof into Supabase storage and receive operator review 
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText(reviewNote, { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText('Approved proof is ready for planner share.', { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first().getByTestId(/driver-proof-open-file-/)).toBeVisible();
+    await expect(page.getByTestId('driver-recent-history')).toContainText('Proof: Approved', { timeout: 30_000 });
   } finally {
     await operatorContext.close();
   }
