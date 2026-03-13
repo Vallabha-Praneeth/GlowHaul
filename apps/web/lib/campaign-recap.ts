@@ -165,14 +165,14 @@ function buildTimeline(
   >[],
   driverMap: Map<string, Pick<ProfileRow, 'email' | 'full_name' | 'id'>>,
 ) {
-  const timeline = [
+  const timeline: Array<CampaignRecapTimelineItem & { sortKey: number }> = [
     {
-      detail: `Campaign booking is ${formatStatus(booking.status)}.`,
+      detail: 'Campaign booking was created and is now tracked in the operations workspace.',
       id: 'booking-created',
-      label: `Booking ${formatStatus(booking.status)}`,
+      label: 'Booking Created',
       sortKey: new Date(booking.created_at ?? booking.updated_at).getTime(),
       timeLabel: formatOptionalDateTime(booking.created_at ?? booking.updated_at) ?? 'Recently',
-      tone: getStatusTone(booking.status),
+      tone: 'success' as const,
     },
   ];
 
@@ -183,10 +183,10 @@ function buildTimeline(
         run.proof_required ? 'Proof required' : 'Proof optional'
       }`,
       id: `run-${run.id}`,
-      label: `Run ${formatStatus(run.status)}`,
+      label: 'Run Scheduled',
       sortKey: new Date(run.scheduled_start_at).getTime(),
       timeLabel: formatOptionalDateTime(run.scheduled_start_at) ?? 'Scheduled',
-      tone: getStatusTone(run.status),
+      tone: 'success' as const,
     });
 
     if (run.issue_reported_at) {
@@ -219,10 +219,10 @@ function buildTimeline(
     timeline.push({
       detail: `${getFileName(proof.storage_path)} • ${driver?.full_name ?? driver?.email ?? 'Assigned driver'}`,
       id: `proof-uploaded-${proof.id}`,
-      label: `Proof ${formatStatus(proof.status)}`,
+      label: 'Proof Uploaded',
       sortKey: new Date(capturedAt).getTime(),
       timeLabel: formatOptionalDateTime(capturedAt) ?? 'Uploaded',
-      tone: getStatusTone(proof.status),
+      tone: 'success' as const,
     });
 
     if (proof.reviewed_at) {
@@ -385,7 +385,10 @@ export async function getCampaignRecapData(bookingId: string): Promise<CampaignR
     campaignSummary: truck
       ? `${truck.display_name} (${truck.vehicle_code}) • ${formatStatus(booking.status)}`
       : formatStatus(booking.status),
-    internalNote: booking.internal_note ?? slot?.campaign_notes ?? null,
+    internalNote:
+      profile.role === 'driver'
+        ? slot?.campaign_notes ?? null
+        : booking.internal_note ?? slot?.campaign_notes ?? null,
     issueSummary,
     lastUpdatedLabel: formatOptionalDateTime(booking.updated_at) ?? 'Recently',
     operatorLabel: organizationMap.get(booking.operator_organization_id)?.name ?? 'Operator organization',

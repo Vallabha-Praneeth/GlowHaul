@@ -83,7 +83,7 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
             </div>
             {recap.internalNote ? (
               <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
-                <span className="fine">Operator notes</span>
+                <span className="fine">Campaign notes</span>
                 <span>{recap.internalNote}</span>
               </div>
             ) : null}
@@ -104,7 +104,9 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
                 Uploaded proof assets and review outcomes tied to this campaign.
               </div>
             </div>
-            <span className="fine">{recap.proofItems.length} assets</span>
+            <span className="fine">
+              {recap.proofItems.length} asset{recap.proofItems.length === 1 ? '' : 's'}
+            </span>
           </div>
 
           <div className="stack" style={{ marginTop: 18 }}>
