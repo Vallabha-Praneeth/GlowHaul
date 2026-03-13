@@ -170,6 +170,7 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await expect(updatedDispatchCampaignCard.locator('select[name="driverId"]')).toHaveValue('33333333-3333-3333-3333-333333333333');
     await expect(updatedDispatchCampaignCard).toContainText('Rolling');
     await expect(updatedDispatchCampaignCard).toContainText('The truck is on the move.');
+    await expect(updatedDispatchCampaignCard.getByRole('link', { name: 'Open recap' })).toBeVisible();
 
     await refreshDriverAssignment(driverPage, dispatchCampaignName, 'En Route');
 

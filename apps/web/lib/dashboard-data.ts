@@ -31,6 +31,7 @@ export type DashboardHistoryItem = {
   detail: string;
   id: string;
   proofLabel: string | null;
+  recapHref: string;
   statusLabel: string;
   tone: BadgeTone;
   title: string;
@@ -90,6 +91,7 @@ export type OperatorActiveBooking = {
   proofReviewTone: BadgeTone;
   proofRequired: boolean;
   proofCountLabel: string;
+  recapHref: string;
   runId: string | null;
   runStatus: RunRow['status'] | null;
   scheduleLabel: string;
@@ -180,6 +182,7 @@ export type PlannerSubmittedOffer = {
   operatorNote: string | null;
   proofLabel: string | null;
   proofTone: BadgeTone | null;
+  recapHref: string | null;
   slotTitle: string;
   statusLabel: string;
   statusTone: BadgeTone;
@@ -216,6 +219,7 @@ export type DriverAssignedRun = {
   proofCount: number;
   proofCountLabel: string;
   proofRequired: boolean;
+  recapHref: string;
   runStatus: RunRow['status'];
   statusLabel: string;
   title: string;
@@ -324,6 +328,10 @@ function getFileName(path: string) {
 
 function getProofAssetHref(id: string) {
   return `/proof/${id}`;
+}
+
+function getCampaignRecapHref(bookingId: string) {
+  return `/campaigns/${bookingId}`;
 }
 
 function buildOperatorDispatchState(
@@ -876,6 +884,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     proofReviewTone: context.dispatchState.proofReviewTone,
     proofRequired: context.run?.proof_required ?? true,
     proofCountLabel: `${formatPlural(context.proofs.length, 'proof')} logged`,
+    recapHref: getCampaignRecapHref(context.booking.id),
     runId: context.run?.id ?? null,
     runStatus: context.run?.status ?? null,
     scheduleLabel:
@@ -1008,6 +1017,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
           : 'Campaign schedule unavailable',
       id: `operator-history-${context.booking.id}`,
       proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+      recapHref: getCampaignRecapHref(context.booking.id),
       statusLabel: formatStatus(context.booking.status),
       title: context.booking.campaign_name,
       tone:
@@ -1367,6 +1377,7 @@ export async function getPlannerMarketplaceData(
     operatorNote: context.offer.operator_note ?? context.booking?.internal_note ?? null,
     proofLabel: context.execution.proofLabel,
     proofTone: context.execution.proofTone,
+    recapHref: context.booking ? getCampaignRecapHref(context.booking.id) : null,
     slotTitle: context.truck ? `${context.truck.display_name} (${context.truck.vehicle_code})` : 'Truck inventory',
     statusLabel: formatStatus(context.offer.status),
     statusTone: getStatusTone(context.offer.status),
@@ -1377,15 +1388,15 @@ export async function getPlannerMarketplaceData(
   const recentHistory: DashboardHistoryItem[] = submittedOfferContexts
     .filter(
       (context) =>
-        context.execution.campaignStageLabel === 'Closed' ||
-        context.execution.campaignStageLabel === 'Cancelled' ||
-        context.execution.campaignStageLabel === 'Proof rejected'
+        !!context.booking &&
+        ['Cancelled', 'Closed', 'Proof rejected'].includes(context.execution.campaignStageLabel)
     )
     .slice(0, 6)
     .map((context) => ({
       detail: context.execution.executionLabel ?? context.execution.nextAction,
       id: `planner-history-${context.offer.id}`,
       proofLabel: context.execution.proofLabel,
+      recapHref: getCampaignRecapHref(context.booking!.id),
       statusLabel: context.execution.campaignStageLabel,
       title: context.booking?.campaign_name ?? context.slot?.campaign_notes ?? 'Tracked campaign',
       tone: context.execution.campaignStageTone,
@@ -1599,6 +1610,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       detail: `${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)} • ${context.proofAction.proofActionCallout}`,
       id: `driver-history-${context.run.id}`,
       proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+      recapHref: getCampaignRecapHref(context.run.booking_id),
       statusLabel: formatStatus(context.run.status),
       title: context.booking?.campaign_name ?? 'Assigned campaign',
       tone:
@@ -1623,6 +1635,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       proofCount: context.proofs.length,
       proofCountLabel: `${formatPlural(context.proofs.length, 'proof')} logged`,
       proofRequired: context.run.proof_required,
+      recapHref: getCampaignRecapHref(context.run.booking_id),
       runStatus: context.run.status,
       statusLabel: formatStatus(context.run.status),
       title: context.booking?.campaign_name ?? 'Assigned campaign',

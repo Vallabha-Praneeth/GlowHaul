@@ -193,6 +193,7 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     const getRunCard = () => page.locator('div.surface').filter({ hasText: campaignName }).first();
     await refreshDriverRunCardUntil(page, campaignName, 'En Route', 'goto');
     await expect(getRunCard().getByText('En Route', { exact: true }).first()).toBeVisible();
+    await expect(getRunCard().getByRole('link', { name: 'Open recap' })).toBeVisible();
 
     await setTextControlValue(getRunCard().getByTestId(/driver-issue-note-/), issueNote);
     await submitActionButtonAndAssertRedirect(
