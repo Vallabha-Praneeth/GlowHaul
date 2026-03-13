@@ -497,6 +497,22 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      mutate_booking_slot_run_transaction: {
+        Args: {
+          target_booking_id: string
+          target_booking_status?: Database["public"]["Enums"]["booking_status"]
+          target_driver_id?: string
+          target_end_at?: string
+          target_internal_note?: string
+          target_issue_note?: string
+          target_operator_organization_id: string
+          target_proof_required?: boolean
+          target_run_status?: Database["public"]["Enums"]["run_status"]
+          target_slot_status?: Database["public"]["Enums"]["slot_status"]
+          target_start_at?: string
+        }
+        Returns: string
+      }
       reject_offer: {
         Args: { target_offer_id: string; target_operator_note?: string }
         Returns: string
@@ -518,22 +534,14 @@ export type Database = {
         }
         Returns: string
       }
-      update_driver_run_status:
-        | {
-            Args: {
-              target_run_id: string
-              target_status: Database["public"]["Enums"]["run_status"]
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              target_issue_note?: string
-              target_run_id: string
-              target_status: Database["public"]["Enums"]["run_status"]
-            }
-            Returns: string
-          }
+      update_driver_run_status: {
+        Args: {
+          target_issue_note?: string
+          target_run_id: string
+          target_status: Database["public"]["Enums"]["run_status"]
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "operator" | "planner" | "driver"
@@ -1268,4 +1276,3 @@ export const Constants = {
     },
   },
 } as const
-

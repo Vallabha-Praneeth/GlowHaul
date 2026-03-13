@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'planner', storageState: authFiles.planner });
@@ -107,7 +107,12 @@ test('planner offer can be submitted and later shows execution and proof state v
     await refreshOperatorOffer(operatorPage, offerMessage);
     const incomingOfferCard = operatorPage.locator('div.surface').filter({ hasText: offerMessage }).first();
     await setTextControlValue(incomingOfferCard.getByLabel('Campaign name'), campaignName);
-    await incomingOfferCard.getByRole('button', { name: 'Accept and book slot' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      incomingOfferCard.getByRole('button', { name: 'Accept and book slot' }),
+      roleHomePaths.operator,
+      'Operator planner-offer acceptance failed',
+    );
     await refreshOperatorCampaign(operatorPage, campaignName);
 
     const operatorActiveCampaign = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
@@ -115,7 +120,12 @@ test('planner offer can be submitted and later shows execution and proof state v
     await operatorActiveCampaign.getByLabel('Assigned driver').selectOption('33333333-3333-3333-3333-333333333333');
     await operatorActiveCampaign.getByLabel('Booking status').selectOption('in_progress');
     await operatorActiveCampaign.getByLabel('Run status').selectOption('en_route');
-    await operatorActiveCampaign.getByRole('button', { name: 'Save dispatch plan' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      operatorActiveCampaign.getByRole('button', { name: 'Save dispatch plan' }),
+      roleHomePaths.operator,
+      'Operator planner dispatch save failed',
+    );
     await refreshOperatorCampaign(operatorPage, campaignName);
     await expect(operatorPage.locator('form.surface').filter({ hasText: campaignName }).first().locator('select[name="driverId"]')).toHaveValue('33333333-3333-3333-3333-333333333333');
 
@@ -147,6 +157,14 @@ test('planner offer can be submitted and later shows execution and proof state v
       driverPage.waitForURL(/\/driver\?(notice|error)=/, { timeout: 60_000 }),
       getDriverRunCard().getByTestId(/driver-report-issue-button-/).click(),
     ]);
+    {
+      const driverActionUrl = new URL(driverPage.url());
+      if (driverActionUrl.searchParams.has('error')) {
+        throw new Error(
+          `Driver issue report failed: ${decodeURIComponent(driverActionUrl.searchParams.get('error') ?? 'Unknown error')}`
+        );
+      }
+    }
     await driverPage.goto(roleHomePaths.driver);
     await waitForRouteValue({
       description: `driver issue for ${campaignName}`,
@@ -172,7 +190,12 @@ test('planner offer can be submitted and later shows execution and proof state v
 
     await operatorPage.goto(roleHomePaths.operator);
     const issueCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
-    await issueCampaignCard.getByRole('button', { name: 'Resolve issue' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      issueCampaignCard.getByRole('button', { name: 'Resolve issue' }),
+      roleHomePaths.operator,
+      'Operator planner issue resolve failed',
+    );
 
     await waitForRouteValue({
       description: `driver resume for ${campaignName}`,
@@ -194,7 +217,12 @@ test('planner offer can be submitted and later shows execution and proof state v
     await operatorPage.goto(roleHomePaths.operator);
     const liveCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await liveCampaignCard.getByLabel('Run status').selectOption('live');
-    await liveCampaignCard.getByRole('button', { name: 'Save dispatch plan' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      liveCampaignCard.getByRole('button', { name: 'Save dispatch plan' }),
+      roleHomePaths.operator,
+      'Operator planner live dispatch save failed',
+    );
 
     await waitForRouteValue({
       description: `driver live state for ${campaignName}`,

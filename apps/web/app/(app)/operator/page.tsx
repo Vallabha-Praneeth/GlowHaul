@@ -339,6 +339,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                   <span className="fine">Issue note</span>
                   <textarea
                     className="input"
+                    data-testid="operator-issue-note-input"
                     defaultValue={booking.issueNote}
                     name="issueNote"
                     placeholder="Traffic block, truck issue, route hold, client pause"

@@ -1023,10 +1023,14 @@ export async function getPlannerMarketplaceData(
     bookings.filter((booking) => booking.offer_id).map((booking) => [booking.offer_id as string, booking])
   );
   const bookingBySlotId = new Map(bookings.map((booking) => [booking.slot_id, booking]));
-  const runByBookingId = new Map(runs.map((run) => [run.booking_id, run]));
+  const trackedBookingIds = new Set(bookings.map((booking) => booking.id));
+  const trackedRuns = runs.filter((run) => trackedBookingIds.has(run.booking_id));
+  const trackedRunIds = new Set(trackedRuns.map((run) => run.id));
+  const trackedProofAssets = proofAssets.filter((asset) => trackedRunIds.has(asset.run_id));
+  const runByBookingId = new Map(trackedRuns.map((run) => [run.booking_id, run]));
   const proofsByRunId = new Map<string, Pick<ProofAssetRow, 'created_at' | 'id' | 'review_notes' | 'run_id' | 'status'>[]>();
 
-  proofAssets.forEach((proof) => {
+  trackedProofAssets.forEach((proof) => {
     const group = proofsByRunId.get(proof.run_id) ?? [];
     group.push(proof);
     proofsByRunId.set(proof.run_id, group);
@@ -1123,9 +1127,9 @@ export async function getPlannerMarketplaceData(
       : 'Authenticated planner view',
     trackerSummary: [
       { label: 'Tracked campaigns', value: String(bookings.length) },
-      { label: 'Issues', value: String(runs.filter((run) => run.status === 'issue').length) },
-      { label: 'Live routes', value: String(runs.filter((run) => run.status === 'live').length) },
-      { label: 'Proof review', value: String(proofAssets.filter((asset) => asset.status === 'uploaded').length) },
+      { label: 'Issues', value: String(trackedRuns.filter((run) => run.status === 'issue').length) },
+      { label: 'Live routes', value: String(trackedRuns.filter((run) => run.status === 'live').length) },
+      { label: 'Proof review', value: String(trackedProofAssets.filter((asset) => asset.status === 'uploaded').length) },
     ],
     submittedOffers: offers.map((offer) => {
       const booking = bookingByOfferId.get(offer.id);

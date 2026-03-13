@@ -152,11 +152,11 @@ function isAllowedDriverTransition(currentStatus: RunStatus, nextStatus: RunStat
 
 export async function updateDriverRunStatus(formData: FormData) {
   const parsed = z.object({
-    issueNote: z.string().trim().max(280).optional(),
+    issueNote: z.string().trim().max(280).nullable().optional(),
     nextStatus: runStatusSchema,
     runId: recordIdSchema,
   }).safeParse({
-    issueNote: formData.get('issueNote'),
+    issueNote: typeof formData.get('issueNote') === 'string' ? (formData.get('issueNote') as string) : undefined,
     nextStatus: formData.get('nextStatus'),
     runId: formData.get('runId'),
   });
@@ -206,11 +206,12 @@ export async function updateDriverRunStatus(formData: FormData) {
       }
     }
 
-    const { error } = await (supabase as any).rpc('update_driver_run_status', {
+    const rpcArgs: Database['public']['Functions']['update_driver_run_status']['Args'] = {
       target_issue_note: issueNote,
       target_run_id: parsed.data.runId,
       target_status: parsed.data.nextStatus,
-    });
+    };
+    const { error } = await supabase.rpc('update_driver_run_status', rpcArgs as never);
 
     if (error) {
       throw new Error(error.message);

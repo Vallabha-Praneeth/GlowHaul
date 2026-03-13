@@ -19,6 +19,25 @@ export async function setTextControlValue(control: Locator, value: string) {
   );
 }
 
+export async function submitActionButtonAndAssertRedirect(
+  page: Page,
+  button: Locator,
+  path: string,
+  failurePrefix: string,
+) {
+  await Promise.all([
+    page.waitForURL(new RegExp(`${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?(notice|error)=`), { timeout: 60_000 }),
+    button.click(),
+  ]);
+
+  const url = new URL(page.url());
+  if (url.searchParams.has('error')) {
+    throw new Error(`${failurePrefix}: ${decodeURIComponent(url.searchParams.get('error') ?? 'Unknown error')}`);
+  }
+
+  await page.goto(path);
+}
+
 type WaitForRouteValueOptions<T> = {
   description: string;
   intervalMs?: number;

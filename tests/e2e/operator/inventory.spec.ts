@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'operator', storageState: 'tests/e2e/.auth/operator.json' });
@@ -118,7 +118,12 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await refreshOperatorOffer(page, offerMessage);
     const incomingOfferCard = page.locator('div.surface').filter({ hasText: offerMessage }).first();
     await incomingOfferCard.getByLabel('Rejection note').fill(rejectionNote);
-    await incomingOfferCard.getByRole('button', { name: 'Reject offer' }).click();
+    await submitActionButtonAndAssertRedirect(
+      page,
+      incomingOfferCard.getByRole('button', { name: 'Reject offer' }),
+      roleHomePaths.operator,
+      'Operator offer rejection failed',
+    );
     await expect(page.locator('div.surface').filter({ hasText: offerMessage }).first()).toContainText(rejectionNote, {
       timeout: 30_000,
     });
@@ -136,7 +141,12 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     const dispatchOfferCard = page.locator('div.surface').filter({ hasText: dispatchOfferMessage }).first();
     await dispatchOfferCard.getByLabel('Campaign name').fill(dispatchCampaignName);
     await dispatchOfferCard.getByLabel('Operator note').fill('Accepted for the best available launch route.');
-    await dispatchOfferCard.getByRole('button', { name: 'Accept and book slot' }).click();
+    await submitActionButtonAndAssertRedirect(
+      page,
+      dispatchOfferCard.getByRole('button', { name: 'Accept and book slot' }),
+      roleHomePaths.operator,
+      'Operator dispatch offer acceptance failed',
+    );
     await refreshOperatorCampaign(page, dispatchCampaignName);
 
     const dispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
@@ -145,7 +155,12 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await dispatchCampaignCard.getByLabel('Run status').selectOption('en_route');
     await dispatchCampaignCard.locator('input[name="proofRequired"]').uncheck();
     await dispatchCampaignCard.getByLabel('Internal note').fill(dispatchInternalNote);
-    await dispatchCampaignCard.getByRole('button', { name: 'Save dispatch plan' }).click();
+    await submitActionButtonAndAssertRedirect(
+      page,
+      dispatchCampaignCard.getByRole('button', { name: 'Save dispatch plan' }),
+      roleHomePaths.operator,
+      'Operator dispatch save failed',
+    );
 
     const updatedDispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
     await expect(updatedDispatchCampaignCard.locator('textarea[name="internalNote"]')).toHaveValue(dispatchInternalNote);
@@ -156,14 +171,24 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await refreshDriverAssignment(driverPage, dispatchCampaignName, 'En Route');
 
     await updatedDispatchCampaignCard.getByLabel('Issue note').fill(dispatchIssueNote);
-    await updatedDispatchCampaignCard.getByRole('button', { name: 'Pause route' }).click();
+    await submitActionButtonAndAssertRedirect(
+      page,
+      updatedDispatchCampaignCard.getByRole('button', { name: 'Pause route' }),
+      roleHomePaths.operator,
+      'Operator pause route failed',
+    );
     const pausedDispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
     await expect(pausedDispatchCampaignCard).toContainText('Issue');
     await expect(pausedDispatchCampaignCard.locator('textarea[name="issueNote"]')).toHaveValue(dispatchIssueNote);
     await expect(pausedDispatchCampaignCard).toContainText(dispatchIssueNote);
     await refreshDriverAssignment(driverPage, dispatchCampaignName, 'Issue');
 
-    await pausedDispatchCampaignCard.getByRole('button', { name: 'Resolve issue' }).click();
+    await submitActionButtonAndAssertRedirect(
+      page,
+      pausedDispatchCampaignCard.getByRole('button', { name: 'Resolve issue' }),
+      roleHomePaths.operator,
+      'Operator issue resolve failed',
+    );
     const resumedDispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
     await expect(resumedDispatchCampaignCard).toContainText('Rolling');
     await expect(resumedDispatchCampaignCard).toContainText(dispatchIssueNote);
@@ -202,7 +227,12 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     const proofCard = page.locator('form.surface').filter({ hasText: proofFileName }).first();
     await expect(proofCard.getByTestId(/operator-proof-view-cta-/)).toBeVisible();
     await proofCard.getByLabel('Review note').fill(proofReviewNote);
-    await proofCard.getByRole('button', { name: 'Reject proof' }).click();
+    await submitActionButtonAndAssertRedirect(
+      page,
+      proofCard.getByRole('button', { name: 'Reject proof' }),
+      roleHomePaths.operator,
+      'Operator proof rejection failed',
+    );
     await waitForRouteValue({
       description: `operator proof review ${proofFileName}`,
       intervalMs: 2_000,

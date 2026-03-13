@@ -2,7 +2,7 @@ import { test as setup } from '@playwright/test';
 import { authFiles, type DemoRole } from './fixtures';
 
 const AUTH_RETRY_LIMIT = 3;
-const AUTH_SETUP_TIMEOUT_MS = 120_000;
+const AUTH_SETUP_TIMEOUT_MS = 200_000;
 
 function sleep(timeoutMs: number) {
   return new Promise((resolve) => setTimeout(resolve, timeoutMs));

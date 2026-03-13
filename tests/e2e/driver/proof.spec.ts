@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'driver', storageState: 'tests/e2e/.auth/driver.json' });
@@ -109,7 +109,12 @@ test('driver can upload proof into Supabase storage and receive operator review 
     await operatorPage.goto(roleHomePaths.operator);
     const proofCard = operatorPage.locator('form.surface').filter({ hasText: fileName }).first();
     await setTextControlValue(proofCard.getByLabel('Review note'), reviewNote);
-    await proofCard.getByRole('button', { name: 'Approve proof' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      proofCard.getByRole('button', { name: 'Approve proof' }),
+      roleHomePaths.operator,
+      'Operator proof approval failed',
+    );
 
     await expect.poll(async () => {
       await page.goto(roleHomePaths.driver);
@@ -160,14 +165,24 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     await refreshOperatorOffer(operatorPage, offerMessage);
     const incomingOfferCard = operatorPage.locator('div.surface').filter({ hasText: offerMessage }).first();
     await setTextControlValue(incomingOfferCard.getByLabel('Campaign name'), campaignName);
-    await incomingOfferCard.getByRole('button', { name: 'Accept and book slot' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      incomingOfferCard.getByRole('button', { name: 'Accept and book slot' }),
+      roleHomePaths.operator,
+      'Operator offer acceptance failed',
+    );
     await refreshOperatorCampaign(operatorPage, campaignName);
 
     const dispatchCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await dispatchCard.getByLabel('Assigned driver').selectOption('33333333-3333-3333-3333-333333333333');
     await dispatchCard.getByLabel('Booking status').selectOption('in_progress');
     await dispatchCard.getByLabel('Run status').selectOption('en_route');
-    await dispatchCard.getByRole('button', { name: 'Save dispatch plan' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      dispatchCard.getByRole('button', { name: 'Save dispatch plan' }),
+      roleHomePaths.operator,
+      'Operator dispatch save failed',
+    );
     await waitForRouteValue({
       description: `operator dispatch assignment ${campaignName}`,
       intervalMs: 2_000,
@@ -198,7 +213,12 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     await operatorPage.goto(roleHomePaths.operator);
     const issueCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await expect(issueCampaignCard).toContainText(issueNote);
-    await issueCampaignCard.getByRole('button', { name: 'Resolve issue' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      issueCampaignCard.getByRole('button', { name: 'Resolve issue' }),
+      roleHomePaths.operator,
+      'Operator issue resolve failed',
+    );
 
     await refreshDriverRunCardUntil(page, campaignName, 'En Route', 'goto');
     await expect(getRunCard()).toContainText(issueNote);
@@ -206,7 +226,12 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     await operatorPage.goto(roleHomePaths.operator);
     const liveCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await liveCampaignCard.getByLabel('Run status').selectOption('live');
-    await liveCampaignCard.getByRole('button', { name: 'Save dispatch plan' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      liveCampaignCard.getByRole('button', { name: 'Save dispatch plan' }),
+      roleHomePaths.operator,
+      'Operator live dispatch save failed',
+    );
 
     await refreshDriverRunCardUntil(page, campaignName, 'Live', 'goto');
     await expect(getRunCard().getByText('Upload at least one proof file before completing this run.')).toBeVisible();
