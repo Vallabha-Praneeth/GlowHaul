@@ -63,6 +63,9 @@ export type OperatorActiveBooking = {
   driverId: string;
   driverLabel: string;
   internalNote: string;
+  issueNote: string;
+  issueReportedAtLabel: string | null;
+  issueResolvedAtLabel: string | null;
   latestProofStatusLabel: string;
   nextAction: string;
   plannerLabel: string;
@@ -146,15 +149,21 @@ export type PlannerAvailableSlot = {
 export type PlannerSubmittedOffer = {
   amountLabel: string;
   bookingLabel: string | null;
+  campaignStageLabel: string;
+  campaignStageTone: BadgeTone;
   executionLabel: string | null;
   id: string;
+  issueNote: string | null;
+  issueUpdatedLabel: string | null;
   message: string | null;
+  nextAction: string;
   operatorNote: string | null;
   proofLabel: string | null;
   proofTone: BadgeTone | null;
   slotTitle: string;
   statusLabel: string;
   statusTone: BadgeTone;
+  timeline: string[];
   updatedLabel: string;
 };
 
@@ -166,6 +175,7 @@ export type PlannerMarketplaceData = {
   regions: RegionCode[];
   sourceLabel: string;
   submittedOffers: PlannerSubmittedOffer[];
+  trackerSummary: DashboardKpi[];
   title: string;
 };
 
@@ -173,6 +183,9 @@ export type DriverAssignedRun = {
   bookingStatusLabel: string;
   detail: string;
   id: string;
+  issueNote: string | null;
+  issueReportedAtLabel: string | null;
+  issueResolvedAtLabel: string | null;
   latestProofReviewNotes: string | null;
   latestProofStatusLabel: string;
   proofActionCallout: string;
@@ -246,6 +259,10 @@ function formatDateTimeInput(isoValue: string) {
   return new Date(isoValue).toISOString().slice(0, 16);
 }
 
+function formatOptionalDateTime(value: string | null | undefined) {
+  return value ? dateTimeFormatter.format(new Date(value)) : null;
+}
+
 function formatPlural(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
@@ -276,10 +293,20 @@ function getProofAssetHref(id: string) {
 
 function buildOperatorDispatchState(
   booking: Pick<BookingRow, 'status'>,
-  run: Pick<RunRow, 'proof_required' | 'status'> | null,
+  run: Pick<RunRow, 'issue_note' | 'proof_required' | 'status'> | null,
   proofCount: number,
   latestProofStatus: ProofAssetRow['status'] | null
 ) {
+  if (booking.status === 'cancelled') {
+    return {
+      dispatchStageLabel: 'Cancelled',
+      dispatchStageTone: 'warning' as const,
+      nextAction: 'This campaign is cancelled. Re-open only if the planner confirms a replacement route.',
+      proofReviewLabel: proofCount > 0 ? `${formatPlural(proofCount, 'proof')} archived` : 'No proof uploaded',
+      proofReviewTone: proofCount > 0 ? 'success' as const : 'warning' as const,
+    };
+  }
+
   if (latestProofStatus === 'rejected') {
     return {
       dispatchStageLabel: 'Proof follow-up',
@@ -356,7 +383,9 @@ function buildOperatorDispatchState(
     return {
       dispatchStageLabel: 'Issue',
       dispatchStageTone: 'warning' as const,
-      nextAction: 'The route is blocked by an issue. Investigate the problem, update the plan, and move the run back to execution when ready.',
+      nextAction: run.issue_note
+        ? `Issue reported: ${run.issue_note}`
+        : 'The route is blocked by an issue. Investigate the problem, update the plan, and move the run back to execution when ready.',
       proofReviewLabel: proofCount > 0 ? `${formatPlural(proofCount, 'proof')} logged` : 'No proof uploaded',
       proofReviewTone: proofCount > 0 ? 'success' as const : 'warning' as const,
     };
@@ -394,8 +423,18 @@ function buildProofReviewAction(status: ProofAssetRow['status'], canReview: bool
 
 function buildDriverProofAction(
   latestProof: Pick<ProofAssetRow, 'review_notes' | 'status'> | null,
-  proofRequired: boolean
+  proofRequired: boolean,
+  run: Pick<RunRow, 'issue_note' | 'status'> | null
 ) {
+  if (run?.status === 'issue') {
+    return {
+      proofActionCallout: run.issue_note
+        ? `Route is paused on an issue: ${run.issue_note}`
+        : 'Route is paused until the current issue is resolved.',
+      proofActionTone: 'warning' as const,
+    };
+  }
+
   if (!latestProof) {
     return {
       proofActionCallout: proofRequired
@@ -429,10 +468,71 @@ function buildDriverProofAction(
 
 function buildPlannerExecutionLabels(
   booking: Pick<BookingRow, 'campaign_name' | 'status'> | null | undefined,
-  run: Pick<RunRow, 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'> | null | undefined,
+  run: Pick<RunRow, 'issue_note' | 'issue_reported_at' | 'issue_resolved_at' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'> | null | undefined,
   proofs: Pick<ProofAssetRow, 'status'>[] = []
 ) {
   const latestProof = proofs[0] ?? null;
+  const timeline = [
+    booking ? `Booking ${formatStatus(booking.status)}` : 'Offer submitted',
+  ];
+
+  if (run) {
+    timeline.push(`Run ${formatStatus(run.status)}`);
+  }
+
+  if (run?.issue_note) {
+    timeline.push(run.issue_resolved_at ? 'Issue resolved' : 'Issue reported');
+  }
+
+  if (latestProof) {
+    timeline.push(`Proof ${formatStatus(latestProof.status)}`);
+  } else if (run?.proof_required) {
+    timeline.push('Proof required');
+  }
+
+  let campaignStageLabel = 'Offer pending';
+  let campaignStageTone: BadgeTone = 'warning';
+  let nextAction = 'Wait for the operator to review this offer.';
+  let issueUpdatedLabel: string | null = null;
+
+  if (booking?.status === 'cancelled') {
+    campaignStageLabel = 'Cancelled';
+    nextAction = 'This campaign was cancelled. Rebook or open a new route if the window changes.';
+  } else if (run?.status === 'issue') {
+    campaignStageLabel = 'Issue';
+    nextAction = run.issue_note
+      ? `Operator is resolving: ${run.issue_note}`
+      : 'An execution issue is blocking the route. Watch for the revised dispatch plan.';
+    issueUpdatedLabel = formatOptionalDateTime(run.issue_reported_at);
+  } else if (latestProof?.status === 'rejected') {
+    campaignStageLabel = 'Proof rejected';
+    nextAction = 'The operator rejected the latest proof. Watch for the driver resubmission before closeout.';
+  } else if (latestProof?.status === 'uploaded') {
+    campaignStageLabel = 'Proof review';
+    nextAction = 'The driver uploaded proof. Operator review is the next milestone.';
+  } else if (latestProof?.status === 'approved') {
+    campaignStageLabel = 'Closed';
+    campaignStageTone = 'success';
+    nextAction = 'Proof is approved and the campaign is ready for recap.';
+  } else if (run?.status === 'live') {
+    campaignStageLabel = 'Live';
+    campaignStageTone = 'success';
+    nextAction = 'The route is live. Watch for proof review and closeout.';
+  } else if (run?.status === 'en_route') {
+    campaignStageLabel = 'En route';
+    nextAction = 'The truck is rolling to the active route.';
+  } else if (run?.status === 'assigned') {
+    campaignStageLabel = 'Scheduled';
+    campaignStageTone = 'success';
+    nextAction = 'Driver is assigned and the route is scheduled.';
+  } else if (booking?.status === 'confirmed') {
+    campaignStageLabel = 'Dispatch pending';
+    nextAction = 'The offer is booked. Operator dispatch details are still being finalized.';
+  } else if (booking?.status === 'completed') {
+    campaignStageLabel = 'Closed';
+    campaignStageTone = 'success';
+    nextAction = 'The booking is complete.';
+  }
 
   const executionLabel =
     run
@@ -461,9 +561,15 @@ function buildPlannerExecutionLabels(
         : null;
 
   return {
+    campaignStageLabel,
+    campaignStageTone,
     executionLabel,
+    issueNote: run?.issue_note ?? null,
+    issueUpdatedLabel,
+    nextAction,
     proofLabel,
     proofTone,
+    timeline,
   };
 }
 
@@ -621,7 +727,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     bookingIds.length > 0
       ? await supabase
           .from('runs')
-          .select('id, booking_id, driver_id, scheduled_start_at, scheduled_end_at, status, proof_required')
+          .select('id, booking_id, driver_id, issue_note, issue_reported_at, issue_resolved_at, scheduled_start_at, scheduled_end_at, status, proof_required')
           .in('booking_id', bookingIds)
           .order('scheduled_start_at')
       : { data: [], error: null };
@@ -632,7 +738,16 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
 
   const runs = (runsResult.data ?? []) as Pick<
     RunRow,
-    'booking_id' | 'driver_id' | 'id' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'
+    | 'booking_id'
+    | 'driver_id'
+    | 'id'
+    | 'issue_note'
+    | 'issue_reported_at'
+    | 'issue_resolved_at'
+    | 'proof_required'
+    | 'scheduled_end_at'
+    | 'scheduled_start_at'
+    | 'status'
   >[];
   const runIds = runs.map((run) => run.id);
   const proofAssetsResult =
@@ -696,6 +811,9 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
         driverId: run?.driver_id ?? '',
         driverLabel: assignedDriver?.full_name ?? assignedDriver?.email ?? 'No driver assigned',
         internalNote: booking.internal_note ?? '',
+        issueNote: run?.issue_note ?? '',
+        issueReportedAtLabel: formatOptionalDateTime(run?.issue_reported_at),
+        issueResolvedAtLabel: formatOptionalDateTime(run?.issue_resolved_at),
         latestProofStatusLabel: latestProof ? formatStatus(latestProof.status) : 'No proof yet',
         nextAction: dispatchState.nextAction,
         plannerLabel:
@@ -805,6 +923,12 @@ export async function getPlannerMarketplaceData(
     regions: ['DFW'],
     sourceLabel: 'Authenticated planner view',
     submittedOffers: [],
+    trackerSummary: [
+      { label: 'Tracked campaigns', value: '0' },
+      { label: 'Issues', value: '0' },
+      { label: 'Live routes', value: '0' },
+      { label: 'Proof review', value: '0' },
+    ],
     title: 'Search mobile inventory fast.',
   };
 
@@ -834,7 +958,7 @@ export async function getPlannerMarketplaceData(
       .eq('planner_organization_id', profile.organization_id),
     supabase
       .from('runs')
-      .select('id, booking_id, scheduled_start_at, scheduled_end_at, status, proof_required')
+      .select('id, booking_id, issue_note, issue_reported_at, issue_resolved_at, scheduled_start_at, scheduled_end_at, status, proof_required')
       .order('scheduled_start_at'),
     supabase
       .from('proof_assets')
@@ -868,7 +992,15 @@ export async function getPlannerMarketplaceData(
   >[];
   const runs = (runsResult.data ?? []) as Pick<
     RunRow,
-    'booking_id' | 'id' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'
+    | 'booking_id'
+    | 'id'
+    | 'issue_note'
+    | 'issue_reported_at'
+    | 'issue_resolved_at'
+    | 'proof_required'
+    | 'scheduled_end_at'
+    | 'scheduled_start_at'
+    | 'status'
   >[];
   const proofAssets = (proofAssetsResult.data ?? []) as Pick<
     ProofAssetRow,
@@ -989,6 +1121,12 @@ export async function getPlannerMarketplaceData(
     sourceLabel: organization?.name
       ? `Authenticated planner view for ${organization.name}`
       : 'Authenticated planner view',
+    trackerSummary: [
+      { label: 'Tracked campaigns', value: String(bookings.length) },
+      { label: 'Issues', value: String(runs.filter((run) => run.status === 'issue').length) },
+      { label: 'Live routes', value: String(runs.filter((run) => run.status === 'live').length) },
+      { label: 'Proof review', value: String(proofAssets.filter((asset) => asset.status === 'uploaded').length) },
+    ],
     submittedOffers: offers.map((offer) => {
       const booking = bookingByOfferId.get(offer.id);
       const slot = slots.find((entry) => entry.id === offer.slot_id);
@@ -999,15 +1137,21 @@ export async function getPlannerMarketplaceData(
       return {
         amountLabel: formatCurrency(offer.amount_cents),
         bookingLabel: booking ? `${formatStatus(booking.status)} • ${booking.campaign_name}` : null,
+        campaignStageLabel: execution.campaignStageLabel,
+        campaignStageTone: execution.campaignStageTone,
         executionLabel: execution.executionLabel,
         id: offer.id,
+        issueNote: execution.issueNote,
+        issueUpdatedLabel: execution.issueUpdatedLabel,
         message: offer.message,
+        nextAction: execution.nextAction,
         operatorNote: offer.operator_note ?? booking?.internal_note ?? null,
         proofLabel: execution.proofLabel,
         proofTone: execution.proofTone,
         slotTitle: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
         statusLabel: formatStatus(offer.status),
         statusTone: getStatusTone(offer.status),
+        timeline: execution.timeline,
         updatedLabel: dateTimeFormatter.format(new Date(offer.updated_at)),
       };
     }),
@@ -1036,7 +1180,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
   const [runsResult, bookingsResult, proofAssetsResult] = await Promise.all([
     supabase
       .from('runs')
-      .select('id, booking_id, scheduled_start_at, scheduled_end_at, status, proof_required')
+      .select('id, booking_id, issue_note, issue_reported_at, issue_resolved_at, scheduled_start_at, scheduled_end_at, status, proof_required')
       .eq('driver_id', profile.id)
       .order('scheduled_start_at'),
     supabase.from('bookings').select('id, campaign_name, status, internal_note'),
@@ -1053,7 +1197,15 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
 
   const runs = (runsResult.data ?? []) as Pick<
     RunRow,
-    'booking_id' | 'id' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'
+    | 'booking_id'
+    | 'id'
+    | 'issue_note'
+    | 'issue_reported_at'
+    | 'issue_resolved_at'
+    | 'proof_required'
+    | 'scheduled_end_at'
+    | 'scheduled_start_at'
+    | 'status'
   >[];
   const bookings = (bookingsResult.data ?? []) as Pick<
     BookingRow,
@@ -1082,11 +1234,14 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       const booking = bookingMap.get(run.booking_id);
       const proofs = proofsByRun.get(run.id) ?? [];
       const latestProof = proofs[0] ?? null;
-      const proofAction = buildDriverProofAction(latestProof, run.proof_required);
+      const proofAction = buildDriverProofAction(latestProof, run.proof_required, run);
       return {
         bookingStatusLabel: booking ? formatStatus(booking.status) : 'Booking pending',
         detail: `${formatTimeWindow(run.scheduled_start_at, run.scheduled_end_at)} • ${formatStatus(run.status)}`,
         id: run.id,
+        issueNote: run.issue_note,
+        issueReportedAtLabel: formatOptionalDateTime(run.issue_reported_at),
+        issueResolvedAtLabel: formatOptionalDateTime(run.issue_resolved_at),
         latestProofReviewNotes: latestProof?.review_notes ?? booking?.internal_note ?? null,
         latestProofStatusLabel: latestProof ? formatStatus(latestProof.status) : 'Awaiting first upload',
         proofActionCallout: proofAction.proofActionCallout,

@@ -52,9 +52,11 @@ const proofStatusSchema = z.enum(Constants.public.Enums.proof_asset_status);
 const campaignExecutionSchema = z.object({
   bookingId: recordIdSchema,
   bookingStatus: bookingStatusSchema,
-  driverId: recordIdSchema,
+  driverId: recordIdSchema.optional(),
   endAt: z.string().min(16),
   internalNote: z.string().trim().max(280).optional(),
+  issueNote: z.string().trim().max(280).optional(),
+  intent: z.enum(['cancel', 'pause', 'resolve', 'save']).optional(),
   proofRequired: z.union([z.literal('on'), z.literal('true'), z.literal('false')]).optional(),
   runStatus: runStatusSchema.optional(),
   startAt: z.string().min(16),
@@ -303,9 +305,14 @@ export async function updateCampaignExecution(formData: FormData) {
   const parsed = campaignExecutionSchema.safeParse({
     bookingId: formData.get('bookingId'),
     bookingStatus: formData.get('bookingStatus'),
-    driverId: formData.get('driverId'),
+    driverId:
+      typeof formData.get('driverId') === 'string' && formData.get('driverId') !== ''
+        ? (formData.get('driverId') as string)
+        : undefined,
     endAt: formData.get('endAt'),
     internalNote: formData.get('internalNote'),
+    intent: formData.get('intent') || undefined,
+    issueNote: formData.get('issueNote'),
     proofRequired: formData.get('proofRequired') ?? 'false',
     runStatus: formData.get('runStatus') || undefined,
     startAt: formData.get('startAt'),
@@ -329,18 +336,6 @@ export async function updateCampaignExecution(formData: FormData) {
       throw new Error('The run end time must be after the start time.');
     }
 
-    const { data: driver } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', parsed.data.driverId)
-      .eq('organization_id', profile.organization_id)
-      .eq('role', 'driver')
-      .maybeSingle();
-
-    if (!driver) {
-      throw new Error('Choose a valid driver before saving dispatch changes.');
-    }
-
     const bookingResult = await supabase
       .from('bookings')
       .select('id, slot_id')
@@ -355,16 +350,55 @@ export async function updateCampaignExecution(formData: FormData) {
 
     const runResult = await supabase
       .from('runs')
-      .select('id, status')
+      .select('id, driver_id, issue_note, issue_reported_at, issue_resolved_at, status')
       .eq('booking_id', booking.id)
       .order('scheduled_start_at')
       .limit(1)
       .maybeSingle();
-    const run = runResult.data as Pick<Database['public']['Tables']['runs']['Row'], 'id' | 'status'> | null;
+    const run = runResult.data as Pick<
+      Database['public']['Tables']['runs']['Row'],
+      'driver_id' | 'id' | 'issue_note' | 'issue_reported_at' | 'issue_resolved_at' | 'status'
+    > | null;
 
-    const bookingStatus = parsed.data.bookingStatus as BookingStatus;
-    const runStatus = (parsed.data.runStatus as RunStatus | undefined) ?? (run ? run.status : 'assigned');
+    const intent = parsed.data.intent ?? 'save';
+    let bookingStatus = parsed.data.bookingStatus as BookingStatus;
+    let runStatus = (parsed.data.runStatus as RunStatus | undefined) ?? (run ? run.status : 'assigned');
+    const nextDriverId = parsed.data.driverId ?? run?.driver_id ?? null;
     const proofRequired = parsed.data.proofRequired === 'on' || parsed.data.proofRequired === 'true';
+    const issueNote = normalizeNotes(parsed.data.issueNote);
+
+    if (intent === 'cancel') {
+      bookingStatus = 'cancelled';
+    } else if (intent === 'pause') {
+      bookingStatus = 'in_progress';
+      runStatus = 'issue';
+    } else if (intent === 'resolve') {
+      bookingStatus = 'in_progress';
+      runStatus = parsed.data.runStatus === 'live' ? 'live' : 'en_route';
+    }
+
+    if ((intent === 'pause' || runStatus === 'issue') && !issueNote && !(run?.issue_note && intent !== 'pause')) {
+      throw new Error('Add an issue note before parking a run in issue state.');
+    }
+
+    if (intent !== 'cancel' && !nextDriverId) {
+      throw new Error('Choose a valid driver before saving dispatch changes.');
+    }
+
+    if (nextDriverId) {
+      const { data: driver } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', nextDriverId)
+        .eq('organization_id', profile.organization_id)
+        .eq('role', 'driver')
+        .maybeSingle();
+
+      if (!driver) {
+        throw new Error('Choose a valid driver before saving dispatch changes.');
+      }
+    }
+
     const nextSlotStatus: SlotStatus =
       bookingStatus === 'cancelled'
         ? 'cancelled'
@@ -398,7 +432,20 @@ export async function updateCampaignExecution(formData: FormData) {
     if (run) {
       const runUpdate = await (supabase.from('runs') as any)
         .update({
-          driver_id: parsed.data.driverId,
+          driver_id: nextDriverId,
+          issue_note: runStatus === 'issue' ? issueNote ?? run.issue_note : run.issue_note,
+          issue_reported_at:
+            runStatus === 'issue'
+              ? run.status === 'issue'
+                ? run.issue_reported_at ?? new Date().toISOString()
+                : new Date().toISOString()
+              : run.issue_reported_at,
+          issue_resolved_at:
+            run.status === 'issue' && runStatus !== 'issue'
+              ? new Date().toISOString()
+              : runStatus === 'issue'
+                ? null
+                : run.issue_resolved_at,
           proof_required: proofRequired,
           scheduled_end_at: endAt,
           scheduled_start_at: startAt,
@@ -409,10 +456,13 @@ export async function updateCampaignExecution(formData: FormData) {
       if (runUpdate.error) {
         throw new Error(runUpdate.error.message);
       }
-    } else {
+    } else if (bookingStatus !== 'cancelled') {
       const runPayload: RunInsert = {
         booking_id: booking.id,
-        driver_id: parsed.data.driverId,
+        driver_id: nextDriverId,
+        issue_note: runStatus === 'issue' ? issueNote : null,
+        issue_reported_at: runStatus === 'issue' ? new Date().toISOString() : null,
+        issue_resolved_at: null,
         proof_required: proofRequired,
         scheduled_end_at: endAt,
         scheduled_start_at: startAt,

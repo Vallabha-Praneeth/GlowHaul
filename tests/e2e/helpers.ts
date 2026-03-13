@@ -25,6 +25,7 @@ type WaitForRouteValueOptions<T> = {
   page: Page;
   path: string;
   read: () => Promise<T>;
+  refreshMode?: 'goto' | 'none';
   timeoutMs?: number;
   until: (value: T) => boolean;
 };
@@ -35,6 +36,7 @@ export async function waitForRouteValue<T>({
   page,
   path,
   read,
+  refreshMode = 'none',
   timeoutMs = 60_000,
   until,
 }: WaitForRouteValueOptions<T>): Promise<T> {
@@ -48,7 +50,7 @@ export async function waitForRouteValue<T>({
         ? new URL(currentUrl).pathname
         : null;
 
-    if (currentPath !== path) {
+    if (currentPath !== path || refreshMode === 'goto') {
       await page.goto(path);
     }
 

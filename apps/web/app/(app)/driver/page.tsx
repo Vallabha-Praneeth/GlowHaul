@@ -112,6 +112,13 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                     {run.latestProofReviewNotes ? (
                       <div className="fine" style={{ marginTop: 6 }}>Review note: {run.latestProofReviewNotes}</div>
                     ) : null}
+                    {run.issueNote ? (
+                      <div className="fine" style={{ marginTop: 6 }}>
+                        Issue note: {run.issueNote}
+                        {run.issueReportedAtLabel ? ` • Reported ${run.issueReportedAtLabel}` : ''}
+                        {run.issueResolvedAtLabel ? ` • Resolved ${run.issueResolvedAtLabel}` : ''}
+                      </div>
+                    ) : null}
 
                     {nextAction ? (
                       <form action={updateDriverRunStatus} className="stack" style={{ marginTop: 14 }}>
@@ -133,6 +140,30 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                         This run is complete. Upload or review proof from the ledger below if needed.
                       </div>
                     )}
+
+                    {run.runStatus !== 'completed' && run.runStatus !== 'issue' ? (
+                      <form action={updateDriverRunStatus} className="stack" style={{ marginTop: 14 }}>
+                        <input name="runId" type="hidden" value={run.id} />
+                        <input name="nextStatus" type="hidden" value="issue" />
+                        <label className="form-field">
+                          <span className="fine">Issue note</span>
+                          <textarea
+                            className="input"
+                            data-testid={`driver-issue-note-${run.id}`}
+                            name="issueNote"
+                            placeholder="Road closure, truck issue, permit hold, weather delay"
+                            rows={3}
+                          />
+                        </label>
+                        <button
+                          className="button-secondary"
+                          data-testid={`driver-report-issue-button-${run.id}`}
+                          type="submit"
+                        >
+                          Report issue
+                        </button>
+                      </form>
+                    ) : null}
 
                     {run.runStatus === 'live' && run.proofRequired && run.proofCount === 0 ? (
                       <div className="badge warning" style={{ marginTop: 12 }}>

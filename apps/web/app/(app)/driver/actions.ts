@@ -152,9 +152,11 @@ function isAllowedDriverTransition(currentStatus: RunStatus, nextStatus: RunStat
 
 export async function updateDriverRunStatus(formData: FormData) {
   const parsed = z.object({
+    issueNote: z.string().trim().max(280).optional(),
     nextStatus: runStatusSchema,
     runId: recordIdSchema,
   }).safeParse({
+    issueNote: formData.get('issueNote'),
     nextStatus: formData.get('nextStatus'),
     runId: formData.get('runId'),
   });
@@ -182,6 +184,12 @@ export async function updateDriverRunStatus(formData: FormData) {
       throw new Error(`You cannot move a ${assignedRun.status.replace('_', ' ')} run to ${parsed.data.nextStatus.replace('_', ' ')}.`);
     }
 
+    const issueNote = parsed.data.issueNote?.trim() ? parsed.data.issueNote.trim() : undefined;
+
+    if (parsed.data.nextStatus === 'issue' && !issueNote) {
+      throw new Error('Add a short issue note before reporting a blocked run.');
+    }
+
     if (parsed.data.nextStatus === 'completed' && assignedRun.proof_required) {
       const { count, error: proofCountError } = await supabase
         .from('proof_assets')
@@ -199,6 +207,7 @@ export async function updateDriverRunStatus(formData: FormData) {
     }
 
     const { error } = await (supabase as any).rpc('update_driver_run_status', {
+      target_issue_note: issueNote,
       target_run_id: parsed.data.runId,
       target_status: parsed.data.nextStatus,
     });

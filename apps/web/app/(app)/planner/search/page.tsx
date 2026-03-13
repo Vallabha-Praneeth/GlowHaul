@@ -162,6 +162,15 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
           {notice ? <div className="badge success">{decodeURIComponent(notice)}</div> : null}
           {error ? <div className="badge warning">{decodeURIComponent(error)}</div> : null}
         </form>
+
+        <div className="kpi-grid" style={{ marginTop: 24 }}>
+          {data.trackerSummary.map((item) => (
+            <div className="card" key={item.label}>
+              <div className="fine">{item.label}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, marginTop: 10 }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
       </section>
 
       <div className="card-grid">
@@ -200,6 +209,9 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
               <div className="pill" data-testid={`planner-submitted-offer-${offer.id}`} key={offer.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
                 <div style={{ fontWeight: 700 }}>{offer.slotTitle}</div>
                 <div className="fine">{offer.amountLabel} • {offer.statusLabel} • {offer.updatedLabel}</div>
+                <div style={{ marginTop: 8 }}>
+                  <span className={`badge ${offer.campaignStageTone}`}>{offer.campaignStageLabel}</span>
+                </div>
                 {offer.bookingLabel ? <div className="fine">{offer.bookingLabel}</div> : null}
                 {offer.executionLabel ? <div className="fine">Execution: {offer.executionLabel}</div> : null}
                 {offer.proofLabel ? (
@@ -210,8 +222,21 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
                     </span>
                   </div>
                 ) : null}
+                <div className="fine">{offer.nextAction}</div>
+                {offer.issueNote ? (
+                  <div className="fine">
+                    Issue:
+                    <span style={{ marginLeft: 6 }}>{offer.issueNote}</span>
+                    {offer.issueUpdatedLabel ? ` • ${offer.issueUpdatedLabel}` : ''}
+                  </div>
+                ) : null}
                 {offer.message ? <div className="fine">{offer.message}</div> : null}
                 {offer.operatorNote ? <div className="fine">Operator note: {offer.operatorNote}</div> : null}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                  {offer.timeline.map((item) => (
+                    <span className="pill" key={`${offer.id}-${item}`}>{item}</span>
+                  ))}
+                </div>
               </div>
             )) : (
               <div className="fine">No offers have been submitted yet.</div>
