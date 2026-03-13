@@ -140,7 +140,7 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
         </div>
 
         <div className="stack" style={{ marginTop: 18 }}>
-          {recap.timeline.map((item) => (
+          {recap.timeline.length > 0 ? recap.timeline.map((item) => (
             <div className="pill" data-testid={`campaign-recap-timeline-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span style={{ fontWeight: 700 }}>{item.label}</span>
@@ -148,7 +148,11 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
               </div>
               <div className="fine">{item.detail}</div>
             </div>
-          ))}
+          )) : (
+            <div className="fine" data-testid="campaign-recap-timeline-empty">
+              No timeline events recorded yet.
+            </div>
+          )}
         </div>
       </section>
     </div>

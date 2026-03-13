@@ -358,7 +358,9 @@ export async function getCampaignRecapData(bookingId: string): Promise<CampaignR
     ((organizationsResult.data ?? []) as Pick<OrganizationRow, 'id' | 'name'>[]).map((organization) => [organization.id, organization]),
   );
 
+  // `runs` is queried in scheduled_start_at ascending order, so the last item is the latest scheduled run.
   const latestRun = runs[runs.length - 1] ?? null;
+  // `proofs` is queried in created_at descending order, so the first item is the latest uploaded proof.
   const latestProof = proofs[0] ?? null;
   const approvedProofs = proofs.filter((proof) => proof.status === 'approved');
   const proofSummary =
