@@ -58,7 +58,7 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-          <a className="button-secondary" href={recap.backHref}>
+          <a className="button-secondary" data-testid="campaign-recap-back-link" href={recap.backHref}>
             Back to workspace
           </a>
         </div>
