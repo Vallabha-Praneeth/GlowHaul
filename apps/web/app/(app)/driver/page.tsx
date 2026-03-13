@@ -279,6 +279,25 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
             </div>
           </section>
         </div>
+
+        <section className="card" data-testid="driver-recent-history" style={{ marginTop: 24 }}>
+          <h2 style={{ marginTop: 0 }}>Recent history</h2>
+          <p className="fine">Completed routes and proof outcomes you may need for recap or resubmission context.</p>
+          <div className="stack" style={{ marginTop: 16 }}>
+            {data.recentHistory.length > 0 ? data.recentHistory.map((item) => (
+              <div className="pill" data-testid={`driver-history-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ fontWeight: 700 }}>{item.title}</span>
+                  <span className={`badge ${item.tone}`}>{item.statusLabel}</span>
+                </div>
+                <div className="fine">{item.detail}</div>
+                {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
+              </div>
+            )) : (
+              <div className="fine">No recent completed runs are archived yet.</div>
+            )}
+          </div>
+        </section>
       </section>
     </div>
   );

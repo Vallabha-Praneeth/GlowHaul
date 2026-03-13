@@ -27,6 +27,15 @@ export type DashboardAttentionItem = {
   tone: BadgeTone;
 };
 
+export type DashboardHistoryItem = {
+  detail: string;
+  id: string;
+  proofLabel: string | null;
+  statusLabel: string;
+  tone: BadgeTone;
+  title: string;
+};
+
 export type OperatorTruckOption = {
   homeRegion: RegionCode;
   id: string;
@@ -118,6 +127,7 @@ export type OperatorDashboardData = {
   inventorySlots: OperatorInventorySlot[];
   kpis: DashboardKpi[];
   proofReviews: OperatorProofReview[];
+  recentHistory: DashboardHistoryItem[];
   sourceLabel: string;
   title: string;
   truckOptions: OperatorTruckOption[];
@@ -184,6 +194,7 @@ export type PlannerMarketplaceData = {
   filterPills: PlannerFilterPill[];
   filterState: PlannerMarketplaceFilters;
   healthSummary: DashboardKpi[];
+  recentHistory: DashboardHistoryItem[];
   regions: RegionCode[];
   sourceLabel: string;
   submittedOffers: PlannerSubmittedOffer[];
@@ -230,6 +241,7 @@ export type DriverWorkspaceData = {
   badgeTone: BadgeTone;
   proofCallout: string;
   proofUploads: DriverUploadedProof[];
+  recentHistory: DashboardHistoryItem[];
   shiftSummary: DashboardKpi[];
   sourceLabel: string;
   title: string;
@@ -680,6 +692,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       { label: 'Proof reviews', value: '0' },
     ],
     proofReviews: [],
+    recentHistory: [],
     sourceLabel: 'Authenticated operator view',
     title: 'Texas fleet, one control room.',
     truckOptions: [],
@@ -979,6 +992,30 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       }),
   ].slice(0, 6);
 
+  const recentHistory: DashboardHistoryItem[] = activeBookingContexts
+    .filter(
+      (context) =>
+        context.booking.status === 'completed' ||
+        context.booking.status === 'cancelled' ||
+        context.latestProof?.status === 'approved'
+    )
+    .slice(0, 6)
+    .map((context) => ({
+      detail: context.run
+        ? `${formatStatus(context.run.status)} • ${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)}`
+        : context.slot
+          ? buildSlotSummary(context.slot)
+          : 'Campaign schedule unavailable',
+      id: `operator-history-${context.booking.id}`,
+      proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+      statusLabel: formatStatus(context.booking.status),
+      title: context.booking.campaign_name,
+      tone:
+        context.booking.status === 'completed' || context.latestProof?.status === 'approved'
+          ? 'success'
+          : 'warning',
+    }));
+
   return {
     activeBookings,
     attentionQueue,
@@ -1029,6 +1066,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       { label: 'Proof reviews', value: String(pendingProofReviews.length) },
     ],
     proofReviews,
+    recentHistory,
     sourceLabel: organization?.name
       ? `Authenticated operator view for ${organization.name}`
       : 'Authenticated operator view',
@@ -1057,6 +1095,7 @@ export async function getPlannerMarketplaceData(
       { label: 'Client-ready', value: '0' },
     ],
     regions: ['DFW'],
+    recentHistory: [],
     sourceLabel: 'Authenticated planner view',
     submittedOffers: [],
     trackerSummary: [
@@ -1335,6 +1374,23 @@ export async function getPlannerMarketplaceData(
     updatedLabel: dateTimeFormatter.format(new Date(context.offer.updated_at)),
   }));
 
+  const recentHistory: DashboardHistoryItem[] = submittedOfferContexts
+    .filter(
+      (context) =>
+        context.execution.campaignStageLabel === 'Closed' ||
+        context.execution.campaignStageLabel === 'Cancelled' ||
+        context.execution.campaignStageLabel === 'Proof rejected'
+    )
+    .slice(0, 6)
+    .map((context) => ({
+      detail: context.execution.executionLabel ?? context.execution.nextAction,
+      id: `planner-history-${context.offer.id}`,
+      proofLabel: context.execution.proofLabel,
+      statusLabel: context.execution.campaignStageLabel,
+      title: context.booking?.campaign_name ?? context.slot?.campaign_notes ?? 'Tracked campaign',
+      tone: context.execution.campaignStageTone,
+    }));
+
   return {
     availableSlots: filteredSlots.map((slot) => {
       const truck = truckMap.get(slot.truck_id);
@@ -1370,6 +1426,7 @@ export async function getPlannerMarketplaceData(
     filterPills,
     filterState: filters,
     healthSummary,
+    recentHistory,
     regions: regions.length > 0 ? regions : fallback.regions,
     sourceLabel: organization?.name
       ? `Authenticated planner view for ${organization.name}`
@@ -1393,6 +1450,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
     badgeTone: 'warning',
     proofCallout: 'Supabase proof storage is wired, but no assigned run data is currently available.',
     proofUploads: [],
+    recentHistory: [],
     shiftSummary: [
       { label: 'Live now', value: '0' },
       { label: 'Blocked', value: '0' },
@@ -1529,6 +1587,26 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       })),
   ].slice(0, 6);
 
+  const recentHistory: DashboardHistoryItem[] = runContexts
+    .filter(
+      (context) =>
+        context.run.status === 'completed' ||
+        context.latestProof?.status === 'approved' ||
+        context.latestProof?.status === 'rejected'
+    )
+    .slice(0, 6)
+    .map((context) => ({
+      detail: `${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)} • ${context.proofAction.proofActionCallout}`,
+      id: `driver-history-${context.run.id}`,
+      proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+      statusLabel: formatStatus(context.run.status),
+      title: context.booking?.campaign_name ?? 'Assigned campaign',
+      tone:
+        context.latestProof?.status === 'approved' || context.run.status === 'completed'
+          ? 'success'
+          : 'warning',
+    }));
+
   return {
     attentionQueue,
     assignedRuns: runContexts.map((context) => ({
@@ -1581,6 +1659,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
         tone: getStatusTone(asset.status),
       };
     }),
+    recentHistory,
     shiftSummary,
     sourceLabel: `Authenticated driver view for ${profile.full_name ?? profile.email}`,
     title: 'Execute runs without call-chain chaos.',

@@ -504,6 +504,32 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
         </section>
       </div>
 
+      <section className="card" data-testid="operator-recent-history">
+        <div className="section-header">
+          <div>
+            <h2 style={{ margin: 0 }}>Recent history</h2>
+            <div className="fine" style={{ marginTop: 6 }}>
+              Closed, cancelled, and client-ready campaigns for fast recap and follow-up.
+            </div>
+          </div>
+          <span className="fine">Closeout archive</span>
+        </div>
+        <div className="stack" style={{ marginTop: 18 }}>
+          {data.recentHistory.length > 0 ? data.recentHistory.map((item) => (
+            <div className="pill" data-testid={`operator-history-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontWeight: 700 }}>{item.title}</span>
+                <span className={`badge ${item.tone}`}>{item.statusLabel}</span>
+              </div>
+              <div className="fine">{item.detail}</div>
+              {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
+            </div>
+          )) : (
+            <div className="fine">No completed or cancelled campaigns are available yet.</div>
+          )}
+        </div>
+      </section>
+
       <section className="card">
         <div className="section-header">
           <div>

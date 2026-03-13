@@ -74,6 +74,7 @@ test('operator can create and edit slot inventory', async ({ page, gotoRoleHome 
   await gotoRoleHome();
   await expect(page.getByTestId('operator-health-summary')).toBeVisible();
   await expect(page.getByTestId('operator-attention-queue')).toBeVisible();
+  await expect(page.getByTestId('operator-recent-history')).toBeVisible();
   await createSlot(page, slotNote);
 
   const slotForm = page.locator('form').filter({ hasText: slotNote }).first();
