@@ -80,6 +80,53 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
         {error ? <div className="badge warning" style={{ marginTop: 18 }}>{decodeURIComponent(error)}</div> : null}
 
         <div className="card-grid" style={{ marginTop: 24 }}>
+          <section className="card" data-testid="driver-shift-summary">
+            <div className="section-header">
+              <div>
+                <h2 style={{ marginTop: 0 }}>Shift summary</h2>
+                <div className="fine" style={{ marginTop: 6 }}>
+                  Production-facing counts for live runs, blockers, and proof obligations.
+                </div>
+              </div>
+              <span className="fine">Driver ops</span>
+            </div>
+            <div className="kpi-grid" style={{ marginTop: 18 }}>
+              {data.shiftSummary.map((item) => (
+                <div className="pill" key={item.label} style={{ display: 'grid' }}>
+                  <span className="fine">{item.label}</span>
+                  <span style={{ fontSize: 24, fontWeight: 700 }}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="card" data-testid="driver-priority-queue">
+            <div className="section-header">
+              <div>
+                <h2 style={{ marginTop: 0 }}>Priority queue</h2>
+                <div className="fine" style={{ marginTop: 6 }}>
+                  The runs that need immediate driver action before the shift slips.
+                </div>
+              </div>
+              <span className="fine">Driver watch list</span>
+            </div>
+            <div className="stack" style={{ marginTop: 18 }}>
+              {data.attentionQueue.length > 0 ? data.attentionQueue.map((item) => (
+                <div className="pill" data-testid={`driver-attention-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <span style={{ fontWeight: 700 }}>{item.title}</span>
+                    <span className={`badge ${item.tone}`}>{item.actionLabel}</span>
+                  </div>
+                  <div className="fine">{item.detail}</div>
+                </div>
+              )) : (
+                <div className="fine">No runs need special intervention right now.</div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="card-grid" style={{ marginTop: 24 }}>
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Assigned runs</h2>
             <div className="stack">

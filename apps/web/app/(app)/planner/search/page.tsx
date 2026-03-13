@@ -174,6 +174,53 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
       </section>
 
       <div className="card-grid">
+        <section className="card" data-testid="planner-campaign-health">
+          <div className="section-header">
+            <div>
+              <h2 style={{ margin: 0 }}>Campaign health</h2>
+              <div className="fine" style={{ marginTop: 6 }}>
+                Production tracking for routes at risk, proof flow, and client-ready campaigns.
+              </div>
+            </div>
+            <span className="fine">Planner oversight</span>
+          </div>
+          <div className="kpi-grid" style={{ marginTop: 18 }}>
+            {data.healthSummary.map((item) => (
+              <div className="pill" key={item.label} style={{ display: 'grid' }}>
+                <span className="fine">{item.label}</span>
+                <span style={{ fontSize: 24, fontWeight: 700 }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card" data-testid="planner-attention-queue">
+          <div className="section-header">
+            <div>
+              <h2 style={{ margin: 0 }}>Needs attention</h2>
+              <div className="fine" style={{ marginTop: 6 }}>
+                The campaigns that still need operator movement, proof review, or issue recovery.
+              </div>
+            </div>
+            <span className="fine">Watch list</span>
+          </div>
+          <div className="stack" style={{ marginTop: 18 }}>
+            {data.attentionQueue.length > 0 ? data.attentionQueue.map((item) => (
+              <div className="pill" data-testid={`planner-attention-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ fontWeight: 700 }}>{item.title}</span>
+                  <span className={`badge ${item.tone}`}>{item.actionLabel}</span>
+                </div>
+                <div className="fine">{item.detail}</div>
+              </div>
+            )) : (
+              <div className="fine">No campaigns need extra planner attention right now.</div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="card-grid">
         <section className="card" data-testid="planner-map-card">
           <div className="section-header">
             <h2 style={{ margin: 0 }}>Map</h2>

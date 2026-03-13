@@ -40,7 +40,7 @@ async function refreshPlannerOffer(page: import('@playwright/test').Page, offerM
     description: `planner offer ${offerMessage}`,
     page,
     path: roleHomePaths.planner,
-    read: async () => page.locator('div.pill').filter({ hasText: offerMessage }).count(),
+    read: async () => page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: offerMessage }).count(),
     until: (count) => count === 1,
   });
 }
@@ -63,6 +63,8 @@ test('planner marketplace exposes free-first map strategy and filter controls', 
     await gotoRoleHome();
     await expect(page.getByText('Map provider: MapLibre-ready')).toBeVisible();
     await expect(page.getByTestId('live-sync-badge')).toBeVisible();
+    await expect(page.getByTestId('planner-campaign-health')).toBeVisible();
+    await expect(page.getByTestId('planner-attention-queue')).toBeVisible();
     await page.getByLabel('Search').fill(slotNote);
     await page.getByLabel('Region').selectOption('Houston');
     await page.getByRole('button', { name: 'Apply filters' }).click();
@@ -130,7 +132,7 @@ test('planner offer can be submitted and later shows execution and proof state v
     await expect(operatorPage.locator('form.surface').filter({ hasText: campaignName }).first().locator('select[name="driverId"]')).toHaveValue('33333333-3333-3333-3333-333333333333');
 
     await page.goto(roleHomePaths.planner);
-    const confirmedOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
+    const confirmedOffer = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(confirmedOffer).toContainText(`In Progress • ${campaignName}`, { timeout: 15_000 });
     await waitForRouteValue({
       description: `planner en route state for ${campaignName}`,
@@ -139,7 +141,7 @@ test('planner offer can be submitted and later shows execution and proof state v
       path: roleHomePaths.planner,
       timeoutMs: 60_000,
       read: async () => {
-        const card = page.locator('div.pill').filter({ hasText: campaignName }).first();
+        const card = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
         if (await card.count() === 0) {
           return '';
         }
@@ -177,9 +179,11 @@ test('planner offer can be submitted and later shows execution and proof state v
     });
 
     await page.goto(roleHomePaths.planner);
-    const issueOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
+    const issueOffer = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(issueOffer).toContainText('Issue', { timeout: 15_000 });
     await expect(issueOffer).toContainText(issueNote, { timeout: 15_000 });
+    await expect(page.getByTestId('planner-attention-queue')).toContainText(campaignName, { timeout: 15_000 });
+    await expect(page.getByTestId('planner-attention-queue')).toContainText(issueNote, { timeout: 15_000 });
 
     await operatorPage.goto(roleHomePaths.operator);
     const issueCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
@@ -252,9 +256,10 @@ test('planner offer can be submitted and later shows execution and proof state v
     });
 
     await page.goto(roleHomePaths.planner);
-    const proofVisibleOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
+    const proofVisibleOffer = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(proofVisibleOffer).toContainText('Uploaded', { timeout: 15_000 });
     await expect(proofVisibleOffer).toContainText('proof logged', { timeout: 15_000 });
+    await expect(page.getByTestId('planner-attention-queue')).toContainText('Wait for approval', { timeout: 15_000 });
   } finally {
     await operatorContext.close();
     await driverContext.close();
