@@ -26,13 +26,15 @@ export async function submitActionButtonAndAssertRedirect(
   failurePrefix: string,
 ) {
   await Promise.all([
-    page.waitForURL(new RegExp(`${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?(notice|error)=`), { timeout: 60_000 }),
+    page.waitForURL((url) => url.pathname === path && (url.searchParams.has('notice') || url.searchParams.has('error')), {
+      timeout: 60_000,
+    }),
     button.click(),
   ]);
 
   const url = new URL(page.url());
   if (url.searchParams.has('error')) {
-    throw new Error(`${failurePrefix}: ${decodeURIComponent(url.searchParams.get('error') ?? 'Unknown error')}`);
+    throw new Error(`${failurePrefix}: ${url.searchParams.get('error') ?? 'Unknown error'}`);
   }
 
   await page.goto(path);

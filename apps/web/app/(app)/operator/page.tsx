@@ -340,7 +340,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                   <textarea
                     className="input"
                     data-testid="operator-issue-note-input"
-                    defaultValue={booking.issueNote}
+                    defaultValue={booking.issueResolvedAtLabel ? '' : booking.issueNote}
                     name="issueNote"
                     placeholder="Traffic block, truck issue, route hold, client pause"
                     rows={3}

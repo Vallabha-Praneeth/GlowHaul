@@ -191,7 +191,8 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     );
     const resumedDispatchCampaignCard = page.locator('form.surface').filter({ hasText: dispatchCampaignName }).first();
     await expect(resumedDispatchCampaignCard).toContainText('Rolling');
-    await expect(resumedDispatchCampaignCard).toContainText(dispatchIssueNote);
+    await expect(resumedDispatchCampaignCard.locator('textarea[name="issueNote"]')).toHaveValue('');
+    await expect(resumedDispatchCampaignCard).toContainText('Resolved');
     await refreshDriverAssignment(driverPage, dispatchCampaignName, 'En Route');
 
     await page.goto(roleHomePaths.operator);

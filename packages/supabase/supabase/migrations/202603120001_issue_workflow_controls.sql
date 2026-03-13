@@ -97,13 +97,13 @@ begin
       else selected_run.issue_note
     end,
     issue_reported_at = case
-      when target_status = 'issue' and selected_run.status <> 'issue' then timezone('utc', now())
-      when target_status = 'issue' then coalesce(selected_run.issue_reported_at, timezone('utc', now()))
+      when target_status = 'issue' and selected_run.status <> 'issue' then now()
+      when target_status = 'issue' then coalesce(selected_run.issue_reported_at, now())
       else selected_run.issue_reported_at
     end,
     issue_resolved_at = case
       when target_status = 'issue' then null
-      when selected_run.status = 'issue' and target_status <> 'issue' then timezone('utc', now())
+      when selected_run.status = 'issue' and target_status <> 'issue' then now()
       else selected_run.issue_resolved_at
     end
   where id = target_run_id;
@@ -259,7 +259,7 @@ begin
     raise exception 'Completed campaigns must keep the run completed.';
   end if;
 
-  if next_run_status = 'issue' and normalized_issue_note is null and coalesce(selected_run.issue_note, '') = '' then
+  if next_run_status = 'issue' and normalized_issue_note is null then
     raise exception 'Add an issue note before parking a run in issue state.';
   end if;
 
@@ -278,17 +278,17 @@ begin
     set
       driver_id = next_driver_id,
       issue_note = case
-        when next_run_status = 'issue' then coalesce(normalized_issue_note, selected_run.issue_note)
+        when next_run_status = 'issue' then normalized_issue_note
         else selected_run.issue_note
       end,
       issue_reported_at = case
-        when next_run_status = 'issue' and selected_run.status <> 'issue' then timezone('utc', now())
-        when next_run_status = 'issue' then coalesce(selected_run.issue_reported_at, timezone('utc', now()))
+        when next_run_status = 'issue' and selected_run.status <> 'issue' then now()
+        when next_run_status = 'issue' then coalesce(selected_run.issue_reported_at, now())
         else selected_run.issue_reported_at
       end,
       issue_resolved_at = case
         when next_run_status = 'issue' then null
-        when selected_run.status = 'issue' and next_run_status <> 'issue' then timezone('utc', now())
+        when selected_run.status = 'issue' and next_run_status <> 'issue' then now()
         else selected_run.issue_resolved_at
       end,
       proof_required = next_proof_required,
@@ -311,7 +311,7 @@ begin
       selected_booking.id,
       next_driver_id,
       case when next_run_status = 'issue' then normalized_issue_note else null end,
-      case when next_run_status = 'issue' then timezone('utc', now()) else null end,
+      case when next_run_status = 'issue' then now() else null end,
       null,
       next_proof_required,
       next_end_at,

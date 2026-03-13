@@ -9,7 +9,6 @@ async function refreshOperatorSlot(page: import('@playwright/test').Page, slotNo
     description: `operator slot ${slotNote}`,
     page,
     path: roleHomePaths.operator,
-    refreshMode: 'goto',
     read: async () => page.locator('form.surface').filter({ hasText: slotNote }).count(),
     until: (count) => count === 1,
   });
@@ -62,20 +61,6 @@ async function refreshDriverRunCardUntil(
     },
     until: (text) => text.includes(expectedText),
   });
-}
-
-async function submitDriverActionForm(page: import('@playwright/test').Page, button: import('@playwright/test').Locator) {
-  await Promise.all([
-    page.waitForURL(/\/driver\?(notice|error)=/, { timeout: 60_000 }),
-    button.click(),
-  ]);
-
-  const url = new URL(page.url());
-  if (url.searchParams.has('error')) {
-    throw new Error(`Driver action failed: ${decodeURIComponent(url.searchParams.get('error') ?? 'Unknown error')}`);
-  }
-
-  await page.goto(roleHomePaths.driver);
 }
 
 test('driver can upload proof into Supabase storage and receive operator review live', async ({ browser, page, gotoRoleHome }) => {
@@ -206,7 +191,12 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     await expect(getRunCard().getByText('En Route', { exact: true }).first()).toBeVisible();
 
     await setTextControlValue(getRunCard().getByTestId(/driver-issue-note-/), issueNote);
-    await submitDriverActionForm(page, getRunCard().getByTestId(/driver-report-issue-button-/));
+    await submitActionButtonAndAssertRedirect(
+      page,
+      getRunCard().getByTestId(/driver-report-issue-button-/),
+      roleHomePaths.driver,
+      'Driver action failed',
+    );
     await refreshDriverRunCardUntil(page, campaignName, 'Issue', 'goto');
     await expect(getRunCard()).toContainText(issueNote);
 

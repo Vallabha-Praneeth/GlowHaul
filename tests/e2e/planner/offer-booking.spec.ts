@@ -153,19 +153,12 @@ test('planner offer can be submitted and later shows execution and proof state v
     await expect(getDriverRunCard()).toContainText('En Route', { timeout: 15_000 });
 
     await setTextControlValue(getDriverRunCard().getByTestId(/driver-issue-note-/), issueNote);
-    await Promise.all([
-      driverPage.waitForURL(/\/driver\?(notice|error)=/, { timeout: 60_000 }),
-      getDriverRunCard().getByTestId(/driver-report-issue-button-/).click(),
-    ]);
-    {
-      const driverActionUrl = new URL(driverPage.url());
-      if (driverActionUrl.searchParams.has('error')) {
-        throw new Error(
-          `Driver issue report failed: ${decodeURIComponent(driverActionUrl.searchParams.get('error') ?? 'Unknown error')}`
-        );
-      }
-    }
-    await driverPage.goto(roleHomePaths.driver);
+    await submitActionButtonAndAssertRedirect(
+      driverPage,
+      getDriverRunCard().getByTestId(/driver-report-issue-button-/),
+      roleHomePaths.driver,
+      'Driver issue report failed',
+    );
     await waitForRouteValue({
       description: `driver issue for ${campaignName}`,
       intervalMs: 2_000,
