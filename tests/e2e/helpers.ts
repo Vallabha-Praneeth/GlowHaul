@@ -19,12 +19,34 @@ export async function setTextControlValue(control: Locator, value: string) {
   );
 }
 
+export async function submitActionButtonAndAssertRedirect(
+  page: Page,
+  button: Locator,
+  path: string,
+  failurePrefix: string,
+) {
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === path && (url.searchParams.has('notice') || url.searchParams.has('error')), {
+      timeout: 60_000,
+    }),
+    button.click(),
+  ]);
+
+  const url = new URL(page.url());
+  if (url.searchParams.has('error')) {
+    throw new Error(`${failurePrefix}: ${url.searchParams.get('error') ?? 'Unknown error'}`);
+  }
+
+  await page.goto(path);
+}
+
 type WaitForRouteValueOptions<T> = {
   description: string;
   intervalMs?: number;
   page: Page;
   path: string;
   read: () => Promise<T>;
+  refreshMode?: 'goto' | 'none';
   timeoutMs?: number;
   until: (value: T) => boolean;
 };
@@ -35,6 +57,7 @@ export async function waitForRouteValue<T>({
   page,
   path,
   read,
+  refreshMode = 'none',
   timeoutMs = 60_000,
   until,
 }: WaitForRouteValueOptions<T>): Promise<T> {
@@ -48,7 +71,7 @@ export async function waitForRouteValue<T>({
         ? new URL(currentUrl).pathname
         : null;
 
-    if (currentPath !== path) {
+    if (currentPath !== path || refreshMode === 'goto') {
       await page.goto(path);
     }
 

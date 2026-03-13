@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'planner', storageState: authFiles.planner });
@@ -29,6 +29,7 @@ async function refreshOperatorOffer(page: import('@playwright/test').Page, offer
     description: `operator offer ${offerMessage}`,
     page,
     path: roleHomePaths.operator,
+    refreshMode: 'goto',
     read: async () => page.locator('div.surface').filter({ hasText: offerMessage }).count(),
     until: (count) => count === 1,
   });
@@ -42,11 +43,6 @@ async function refreshPlannerOffer(page: import('@playwright/test').Page, offerM
     read: async () => page.locator('div.pill').filter({ hasText: offerMessage }).count(),
     until: (count) => count === 1,
   });
-}
-
-async function submitDriverTransition(page: import('@playwright/test').Page, campaignName: string) {
-  const runCard = page.locator('div.surface').filter({ hasText: campaignName }).first();
-  await requestSubmit(runCard.locator('form').first());
 }
 
 test('planner marketplace exposes free-first map strategy and filter controls', async ({ browser, page, gotoRoleHome }) => {
@@ -82,6 +78,7 @@ test('planner offer can be submitted and later shows execution and proof state v
   const slotNote = `Planner flow slot ${Date.now()}`;
   const offerMessage = `Planner offer ${Date.now()}`;
   const campaignName = `Planner booking ${Date.now()}`;
+  const issueNote = `Street festival detour ${Date.now()}`;
   const proofFileName = `planner-visibility-${Date.now()}.jpg`;
 
   const operatorContext = await browser.newContext({ storageState: authFiles.operator });
@@ -110,29 +107,64 @@ test('planner offer can be submitted and later shows execution and proof state v
     await refreshOperatorOffer(operatorPage, offerMessage);
     const incomingOfferCard = operatorPage.locator('div.surface').filter({ hasText: offerMessage }).first();
     await setTextControlValue(incomingOfferCard.getByLabel('Campaign name'), campaignName);
-    await incomingOfferCard.getByRole('button', { name: 'Accept and book slot' }).click();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      incomingOfferCard.getByRole('button', { name: 'Accept and book slot' }),
+      roleHomePaths.operator,
+      'Operator planner-offer acceptance failed',
+    );
     await refreshOperatorCampaign(operatorPage, campaignName);
 
     const operatorActiveCampaign = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await expect(operatorActiveCampaign).toBeVisible();
-    await operatorActiveCampaign.getByLabel('Assigned driver').selectOption({ label: 'Drew Driver' });
-    await operatorActiveCampaign.getByRole('button', { name: 'Save dispatch plan' }).click();
+    await operatorActiveCampaign.getByLabel('Assigned driver').selectOption('33333333-3333-3333-3333-333333333333');
+    await operatorActiveCampaign.getByLabel('Booking status').selectOption('in_progress');
+    await operatorActiveCampaign.getByLabel('Run status').selectOption('en_route');
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      operatorActiveCampaign.getByRole('button', { name: 'Save dispatch plan' }),
+      roleHomePaths.operator,
+      'Operator planner dispatch save failed',
+    );
     await refreshOperatorCampaign(operatorPage, campaignName);
+    await expect(operatorPage.locator('form.surface').filter({ hasText: campaignName }).first().locator('select[name="driverId"]')).toHaveValue('33333333-3333-3333-3333-333333333333');
 
     await page.goto(roleHomePaths.planner);
     const confirmedOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
-    await expect(confirmedOffer).toContainText(`Confirmed • ${campaignName}`, { timeout: 15_000 });
-    await expect(confirmedOffer).toContainText('Execution: Assigned', { timeout: 15_000 });
-    await expect(confirmedOffer).toContainText('Proof:', { timeout: 15_000 });
+    await expect(confirmedOffer).toContainText(`In Progress • ${campaignName}`, { timeout: 15_000 });
+    await waitForRouteValue({
+      description: `planner en route state for ${campaignName}`,
+      intervalMs: 2_000,
+      page,
+      path: roleHomePaths.planner,
+      timeoutMs: 60_000,
+      read: async () => {
+        const card = page.locator('div.pill').filter({ hasText: campaignName }).first();
+        if (await card.count() === 0) {
+          return '';
+        }
+        return (await card.textContent()) ?? '';
+      },
+      until: (text) => text.includes('Execution: En Route') && text.includes('Proof:'),
+    });
 
     await driverPage.goto(roleHomePaths.driver);
     const getDriverRunCard = () => driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
-    await submitDriverTransition(driverPage, campaignName);
+    await expect(getDriverRunCard()).toContainText('En Route', { timeout: 15_000 });
+
+    await setTextControlValue(getDriverRunCard().getByTestId(/driver-issue-note-/), issueNote);
+    await submitActionButtonAndAssertRedirect(
+      driverPage,
+      getDriverRunCard().getByTestId(/driver-report-issue-button-/),
+      roleHomePaths.driver,
+      'Driver issue report failed',
+    );
     await waitForRouteValue({
-      description: `driver assignment for ${campaignName}`,
+      description: `driver issue for ${campaignName}`,
       intervalMs: 2_000,
       page: driverPage,
       path: roleHomePaths.driver,
+      refreshMode: 'goto',
       timeoutMs: 60_000,
       read: async () => {
         const card = getDriverRunCard();
@@ -141,12 +173,66 @@ test('planner offer can be submitted and later shows execution and proof state v
         }
         return (await card.textContent()) ?? '';
       },
-      until: (text) => text.includes('En Route'),
+      until: (text) => text.includes('Issue') && text.includes(issueNote),
     });
 
     await page.goto(roleHomePaths.planner);
-    const executingOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
-    await expect(executingOffer).toContainText('Execution: En Route', { timeout: 15_000 });
+    const issueOffer = page.locator('div.pill').filter({ hasText: campaignName }).first();
+    await expect(issueOffer).toContainText('Issue', { timeout: 15_000 });
+    await expect(issueOffer).toContainText(issueNote, { timeout: 15_000 });
+
+    await operatorPage.goto(roleHomePaths.operator);
+    const issueCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      issueCampaignCard.getByRole('button', { name: 'Resolve issue' }),
+      roleHomePaths.operator,
+      'Operator planner issue resolve failed',
+    );
+
+    await waitForRouteValue({
+      description: `driver resume for ${campaignName}`,
+      intervalMs: 2_000,
+      page: driverPage,
+      path: roleHomePaths.driver,
+      refreshMode: 'goto',
+      timeoutMs: 60_000,
+      read: async () => {
+        const card = getDriverRunCard();
+        if (await card.count() === 0) {
+          return '';
+        }
+        return (await card.textContent()) ?? '';
+      },
+      until: (text) => text.includes('En Route') && text.includes(issueNote),
+    });
+
+    await operatorPage.goto(roleHomePaths.operator);
+    const liveCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
+    await liveCampaignCard.getByLabel('Run status').selectOption('live');
+    await submitActionButtonAndAssertRedirect(
+      operatorPage,
+      liveCampaignCard.getByRole('button', { name: 'Save dispatch plan' }),
+      roleHomePaths.operator,
+      'Operator planner live dispatch save failed',
+    );
+
+    await waitForRouteValue({
+      description: `driver live state for ${campaignName}`,
+      intervalMs: 2_000,
+      page: driverPage,
+      path: roleHomePaths.driver,
+      refreshMode: 'goto',
+      timeoutMs: 60_000,
+      read: async () => {
+        const card = getDriverRunCard();
+        if (await card.count() === 0) {
+          return '';
+        }
+        return (await card.textContent()) ?? '';
+      },
+      until: (text) => text.includes('Live') && text.includes(issueNote),
+    });
 
     const uploadInput = getDriverRunCard().getByTestId(/driver-proof-file-input-/);
     await uploadInput.setInputFiles({

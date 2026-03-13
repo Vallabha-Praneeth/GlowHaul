@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { campaignExecutionSchema, recordIdSchema, type CampaignExecutionInput } from '@glowhaul/core';
 import { Constants, type Database } from '../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
 import { rethrowRedirectError } from '../../../lib/redirect-errors';
@@ -13,12 +14,10 @@ type SlotStatus = Database['public']['Enums']['slot_status'];
 type BookingStatus = Database['public']['Enums']['booking_status'];
 type ProofAssetStatus = Database['public']['Enums']['proof_asset_status'];
 type RunStatus = Database['public']['Enums']['run_status'];
-type RunInsert = Database['public']['Tables']['runs']['Insert'];
 type SlotInsert = Database['public']['Tables']['slots']['Insert'];
 
 const regionSchema = z.enum(Constants.public.Enums.region_code);
 const slotStatusSchema = z.enum(Constants.public.Enums.slot_status);
-const recordIdSchema = z.string().regex(/^[0-9a-fA-F-]{36}$/, 'Invalid id.');
 
 const slotMutationSchema = z.object({
   campaignNotes: z.string().trim().max(280).optional(),
@@ -45,20 +44,7 @@ const rejectOfferSchema = z.object({
   operatorNote: z.string().trim().max(280).optional(),
 });
 
-const bookingStatusSchema = z.enum(Constants.public.Enums.booking_status);
-const runStatusSchema = z.enum(Constants.public.Enums.run_status);
 const proofStatusSchema = z.enum(Constants.public.Enums.proof_asset_status);
-
-const campaignExecutionSchema = z.object({
-  bookingId: recordIdSchema,
-  bookingStatus: bookingStatusSchema,
-  driverId: recordIdSchema,
-  endAt: z.string().min(16),
-  internalNote: z.string().trim().max(280).optional(),
-  proofRequired: z.union([z.literal('on'), z.literal('true'), z.literal('false')]).optional(),
-  runStatus: runStatusSchema.optional(),
-  startAt: z.string().min(16),
-});
 
 const proofReviewSchema = z.object({
   proofAssetId: recordIdSchema,
@@ -85,6 +71,74 @@ function normalizeDateTimeInput(value: string) {
 function normalizeNotes(value?: string) {
   const trimmed = value?.trim() ?? '';
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeCampaignExecutionState(
+  input: CampaignExecutionInput
+): { bookingStatus: BookingStatus; driverId: string | null; runStatus: RunStatus } {
+  const intent = input.intent ?? 'save';
+  let bookingStatus = input.bookingStatus as BookingStatus;
+  let runStatus = (input.runStatus as RunStatus | undefined) ?? 'assigned';
+  let driverId = input.driverId ?? null;
+
+  if (intent === 'cancel') {
+    return {
+      bookingStatus: 'cancelled',
+      driverId: null,
+      runStatus: 'assigned',
+    };
+  }
+
+  if (intent === 'pause') {
+    return {
+      bookingStatus: 'in_progress',
+      driverId,
+      runStatus: 'issue',
+    };
+  }
+
+  if (intent === 'resolve') {
+    return {
+      bookingStatus: 'in_progress',
+      driverId,
+      runStatus: input.runStatus === 'live' ? 'live' : 'en_route',
+    };
+  }
+
+  if (bookingStatus === 'cancelled') {
+    throw new Error('Use the cancel campaign action instead of saving a cancelled state.');
+  }
+
+  if (runStatus === 'completed') {
+    bookingStatus = 'completed';
+  } else if (runStatus === 'en_route' || runStatus === 'live' || runStatus === 'issue') {
+    bookingStatus = 'in_progress';
+  } else if (bookingStatus === 'in_progress') {
+    runStatus = 'en_route';
+  } else if (bookingStatus === 'completed') {
+    runStatus = 'completed';
+  } else {
+    bookingStatus = 'confirmed';
+    runStatus = 'assigned';
+  }
+
+  if (bookingStatus === 'completed' && runStatus !== 'completed') {
+    throw new Error('Completed campaigns must keep the run in completed state.');
+  }
+
+  if (bookingStatus === 'in_progress' && !['en_route', 'live', 'issue'].includes(runStatus)) {
+    throw new Error('In-progress campaigns must use en route, live, or issue run states.');
+  }
+
+  if (bookingStatus === 'confirmed' && runStatus !== 'assigned') {
+    throw new Error('Confirmed campaigns must keep the run in assigned state until dispatch begins.');
+  }
+
+  return {
+    bookingStatus,
+    driverId,
+    runStatus,
+  };
 }
 
 async function requireOperatorContext() {
@@ -303,9 +357,14 @@ export async function updateCampaignExecution(formData: FormData) {
   const parsed = campaignExecutionSchema.safeParse({
     bookingId: formData.get('bookingId'),
     bookingStatus: formData.get('bookingStatus'),
-    driverId: formData.get('driverId'),
+    driverId:
+      typeof formData.get('driverId') === 'string' && formData.get('driverId') !== ''
+        ? (formData.get('driverId') as string)
+        : undefined,
     endAt: formData.get('endAt'),
-    internalNote: formData.get('internalNote'),
+    internalNote: typeof formData.get('internalNote') === 'string' ? (formData.get('internalNote') as string) : undefined,
+    intent: formData.get('intent') || undefined,
+    issueNote: typeof formData.get('issueNote') === 'string' ? (formData.get('issueNote') as string) : undefined,
     proofRequired: formData.get('proofRequired') ?? 'false',
     runStatus: formData.get('runStatus') || undefined,
     startAt: formData.get('startAt'),
@@ -328,101 +387,43 @@ export async function updateCampaignExecution(formData: FormData) {
     if (new Date(endAt).getTime() <= new Date(startAt).getTime()) {
       throw new Error('The run end time must be after the start time.');
     }
-
-    const { data: driver } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', parsed.data.driverId)
-      .eq('organization_id', profile.organization_id)
-      .eq('role', 'driver')
-      .maybeSingle();
-
-    if (!driver) {
-      throw new Error('Choose a valid driver before saving dispatch changes.');
-    }
-
-    const bookingResult = await supabase
-      .from('bookings')
-      .select('id, slot_id')
-      .eq('id', parsed.data.bookingId)
-      .eq('operator_organization_id', profile.organization_id)
-      .maybeSingle();
-    const booking = bookingResult.data as Pick<Database['public']['Tables']['bookings']['Row'], 'id' | 'slot_id'> | null;
-
-    if (!booking) {
-      throw new Error('That campaign is no longer available to update.');
-    }
-
-    const runResult = await supabase
-      .from('runs')
-      .select('id, status')
-      .eq('booking_id', booking.id)
-      .order('scheduled_start_at')
-      .limit(1)
-      .maybeSingle();
-    const run = runResult.data as Pick<Database['public']['Tables']['runs']['Row'], 'id' | 'status'> | null;
-
-    const bookingStatus = parsed.data.bookingStatus as BookingStatus;
-    const runStatus = (parsed.data.runStatus as RunStatus | undefined) ?? (run ? run.status : 'assigned');
+    const normalized = normalizeCampaignExecutionState(parsed.data);
     const proofRequired = parsed.data.proofRequired === 'on' || parsed.data.proofRequired === 'true';
+    const issueNote = normalizeNotes(parsed.data.issueNote);
     const nextSlotStatus: SlotStatus =
-      bookingStatus === 'cancelled'
+      normalized.bookingStatus === 'cancelled'
         ? 'cancelled'
-        : bookingStatus === 'completed' || runStatus === 'completed'
+        : normalized.bookingStatus === 'completed' || normalized.runStatus === 'completed'
           ? 'completed'
-          : bookingStatus === 'in_progress' || runStatus === 'en_route' || runStatus === 'live'
+          : normalized.bookingStatus === 'in_progress' || normalized.runStatus === 'en_route' || normalized.runStatus === 'live'
             ? 'running'
             : 'booked';
 
-    const bookingUpdate = await (supabase.from('bookings') as any)
-      .update({
-        internal_note: normalizeNotes(parsed.data.internalNote),
-        status: bookingStatus,
-      })
-      .eq('id', booking.id)
-      .eq('operator_organization_id', profile.organization_id);
-
-    if (bookingUpdate.error) {
-      throw new Error(bookingUpdate.error.message);
+    if ((parsed.data.intent === 'pause' || normalized.runStatus === 'issue') && !issueNote) {
+      throw new Error('Add an issue note before parking a run in issue state.');
     }
 
-    const slotUpdate = await (supabase.from('slots') as any)
-      .update({ status: nextSlotStatus })
-      .eq('id', booking.slot_id)
-      .eq('operator_organization_id', profile.organization_id);
-
-    if (slotUpdate.error) {
-      throw new Error(slotUpdate.error.message);
+    if (normalized.bookingStatus !== 'cancelled' && !normalized.driverId) {
+      throw new Error('Choose a valid driver before saving dispatch changes.');
     }
 
-    if (run) {
-      const runUpdate = await (supabase.from('runs') as any)
-        .update({
-          driver_id: parsed.data.driverId,
-          proof_required: proofRequired,
-          scheduled_end_at: endAt,
-          scheduled_start_at: startAt,
-          status: runStatus,
-        })
-        .eq('id', run.id);
+    const rpcArgs: Database['public']['Functions']['mutate_booking_slot_run_transaction']['Args'] = {
+      target_booking_id: parsed.data.bookingId,
+      target_booking_status: normalized.bookingStatus,
+      target_driver_id: normalized.driverId ?? undefined,
+      target_end_at: endAt,
+      target_internal_note: normalizeNotes(parsed.data.internalNote) ?? undefined,
+      target_issue_note: issueNote ?? undefined,
+      target_operator_organization_id: profile.organization_id,
+      target_proof_required: proofRequired,
+      target_run_status: normalized.runStatus,
+      target_slot_status: nextSlotStatus,
+      target_start_at: startAt,
+    };
+    const { error } = await supabase.rpc('mutate_booking_slot_run_transaction', rpcArgs as never);
 
-      if (runUpdate.error) {
-        throw new Error(runUpdate.error.message);
-      }
-    } else {
-      const runPayload: RunInsert = {
-        booking_id: booking.id,
-        driver_id: parsed.data.driverId,
-        proof_required: proofRequired,
-        scheduled_end_at: endAt,
-        scheduled_start_at: startAt,
-        status: runStatus,
-      };
-      const runInsert = await (supabase.from('runs') as any).insert(runPayload);
-
-      if (runInsert.error) {
-        throw new Error(runInsert.error.message);
-      }
+    if (error) {
+      throw new Error(error.message);
     }
   } catch (error) {
     rethrowRedirectError(error);

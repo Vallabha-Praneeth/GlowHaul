@@ -152,9 +152,11 @@ function isAllowedDriverTransition(currentStatus: RunStatus, nextStatus: RunStat
 
 export async function updateDriverRunStatus(formData: FormData) {
   const parsed = z.object({
+    issueNote: z.string().trim().max(280).nullable().optional(),
     nextStatus: runStatusSchema,
     runId: recordIdSchema,
   }).safeParse({
+    issueNote: typeof formData.get('issueNote') === 'string' ? (formData.get('issueNote') as string) : undefined,
     nextStatus: formData.get('nextStatus'),
     runId: formData.get('runId'),
   });
@@ -182,6 +184,12 @@ export async function updateDriverRunStatus(formData: FormData) {
       throw new Error(`You cannot move a ${assignedRun.status.replace('_', ' ')} run to ${parsed.data.nextStatus.replace('_', ' ')}.`);
     }
 
+    const issueNote = parsed.data.issueNote?.trim() ? parsed.data.issueNote.trim() : undefined;
+
+    if (parsed.data.nextStatus === 'issue' && !issueNote) {
+      throw new Error('Add a short issue note before reporting a blocked run.');
+    }
+
     if (parsed.data.nextStatus === 'completed' && assignedRun.proof_required) {
       const { count, error: proofCountError } = await supabase
         .from('proof_assets')
@@ -198,10 +206,12 @@ export async function updateDriverRunStatus(formData: FormData) {
       }
     }
 
-    const { error } = await (supabase as any).rpc('update_driver_run_status', {
+    const rpcArgs: Database['public']['Functions']['update_driver_run_status']['Args'] = {
+      target_issue_note: issueNote,
       target_run_id: parsed.data.runId,
       target_status: parsed.data.nextStatus,
-    });
+    };
+    const { error } = await supabase.rpc('update_driver_run_status', rpcArgs as never);
 
     if (error) {
       throw new Error(error.message);

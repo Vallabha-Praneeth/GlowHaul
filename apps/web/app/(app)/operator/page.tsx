@@ -335,14 +335,47 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                   />
                 </label>
 
+                <label className="form-field">
+                  <span className="fine">Issue note</span>
+                  <textarea
+                    className="input"
+                    data-testid="operator-issue-note-input"
+                    defaultValue={booking.issueResolvedAtLabel ? '' : booking.issueNote}
+                    name="issueNote"
+                    placeholder="Traffic block, truck issue, route hold, client pause"
+                    rows={3}
+                  />
+                </label>
+
+                {booking.issueReportedAtLabel || booking.issueResolvedAtLabel ? (
+                  <div className="fine">
+                    {booking.issueReportedAtLabel ? `Reported ${booking.issueReportedAtLabel}` : null}
+                    {booking.issueReportedAtLabel && booking.issueResolvedAtLabel ? ' • ' : null}
+                    {booking.issueResolvedAtLabel ? `Resolved ${booking.issueResolvedAtLabel}` : null}
+                  </div>
+                ) : null}
+
                 <div className="fine">
                   Dispatch state: {formatStatusLabel(booking.bookingStatus)} booking
                   {booking.runStatus ? ` • ${formatStatusLabel(booking.runStatus)} run` : ''}
                 </div>
 
-                <button className="button-secondary" data-testid="operator-update-campaign-submit" type="submit">
-                  Save dispatch plan
-                </button>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                  <button className="button-secondary" data-testid="operator-update-campaign-submit" name="intent" type="submit" value="save">
+                    Save dispatch plan
+                  </button>
+                  <button className="button-secondary" data-testid="operator-pause-campaign-submit" name="intent" type="submit" value="pause">
+                    Pause route
+                  </button>
+                  {booking.runStatus === 'issue' ? (
+                    <button className="button-secondary" data-testid="operator-resolve-campaign-submit" name="intent" type="submit" value="resolve">
+                      Resolve issue
+                    </button>
+                  ) : null}
+                  <button className="button-secondary" data-testid="operator-cancel-campaign-submit" name="intent" type="submit" value="cancel">
+                    Cancel campaign
+                  </button>
+                </div>
               </form>
             )) : (
               <div className="fine">No confirmed campaigns are active yet.</div>
