@@ -72,6 +72,8 @@ test('operator can create and edit slot inventory', async ({ page, gotoRoleHome 
   const updatedNote = `${slotNote} updated`;
 
   await gotoRoleHome();
+  await expect(page.getByTestId('operator-health-summary')).toBeVisible();
+  await expect(page.getByTestId('operator-attention-queue')).toBeVisible();
   await createSlot(page, slotNote);
 
   const slotForm = page.locator('form').filter({ hasText: slotNote }).first();
@@ -181,6 +183,8 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await expect(pausedDispatchCampaignCard).toContainText('Issue');
     await expect(pausedDispatchCampaignCard.locator('textarea[name="issueNote"]')).toHaveValue(dispatchIssueNote);
     await expect(pausedDispatchCampaignCard).toContainText(dispatchIssueNote);
+    await expect(page.getByTestId('operator-attention-queue')).toContainText(dispatchCampaignName);
+    await expect(page.getByTestId('operator-attention-queue')).toContainText(dispatchIssueNote);
     await refreshDriverAssignment(driverPage, dispatchCampaignName, 'Issue');
 
     await submitActionButtonAndAssertRedirect(

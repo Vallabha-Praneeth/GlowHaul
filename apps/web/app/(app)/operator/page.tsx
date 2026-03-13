@@ -69,6 +69,53 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
       </section>
 
       <div className="card-grid">
+        <section className="card" data-testid="operator-health-summary">
+          <div className="section-header">
+            <div>
+              <h2 style={{ margin: 0 }}>Operations health</h2>
+              <div className="fine" style={{ marginTop: 6 }}>
+                Production-facing signals for live routes, dispatch timing, and proof closeout.
+              </div>
+            </div>
+            <span className="fine">Control room</span>
+          </div>
+          <div className="kpi-grid" style={{ marginTop: 18 }}>
+            {data.healthSummary.map((item) => (
+              <div className="pill" key={item.label} style={{ display: 'grid' }}>
+                <span className="fine">{item.label}</span>
+                <span style={{ fontSize: 24, fontWeight: 700 }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card" data-testid="operator-attention-queue">
+          <div className="section-header">
+            <div>
+              <h2 style={{ margin: 0 }}>Needs attention</h2>
+              <div className="fine" style={{ marginTop: 6 }}>
+                Campaigns and proofs that need an operator move right now.
+              </div>
+            </div>
+            <span className="fine">Action queue</span>
+          </div>
+          <div className="stack" style={{ marginTop: 18 }}>
+            {data.attentionQueue.length > 0 ? data.attentionQueue.map((item) => (
+              <div className="pill" data-testid={`operator-attention-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ fontWeight: 700 }}>{item.title}</span>
+                  <span className={`badge ${item.tone}`}>{item.actionLabel}</span>
+                </div>
+                <div className="fine">{item.detail}</div>
+              </div>
+            )) : (
+              <div className="fine">No campaigns need immediate intervention.</div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="card-grid">
         <section className="card" data-testid="operator-slot-inventory-card">
           <div className="section-header">
             <div>

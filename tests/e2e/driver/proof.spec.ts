@@ -73,6 +73,8 @@ test('driver can upload proof into Supabase storage and receive operator review 
   try {
     await gotoRoleHome();
     await expect(page.getByTestId('live-sync-badge')).toBeVisible();
+    await expect(page.getByTestId('driver-shift-summary')).toBeVisible();
+    await expect(page.getByTestId('driver-priority-queue')).toBeVisible();
 
     const uploadInput = page.getByTestId(/driver-proof-file-input-/).first();
     await uploadInput.setInputFiles({
@@ -199,6 +201,8 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     );
     await refreshDriverRunCardUntil(page, campaignName, 'Issue', 'goto');
     await expect(getRunCard()).toContainText(issueNote);
+    await expect(page.getByTestId('driver-priority-queue')).toContainText(campaignName);
+    await expect(page.getByTestId('driver-priority-queue')).toContainText(issueNote);
 
     await operatorPage.goto(roleHomePaths.operator);
     const issueCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
@@ -244,9 +248,10 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     });
 
     await expect(getRunCard()).toContainText('Proof uploaded. Waiting for operator review.');
+    await expect(page.getByTestId('driver-shift-summary')).toContainText('Need proof');
 
     await plannerPage.goto(roleHomePaths.planner);
-    const completedOffer = plannerPage.locator('div.pill').filter({ hasText: campaignName }).first();
+    const completedOffer = plannerPage.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
     await expect(completedOffer).toContainText(`Execution: Live`, { timeout: 15_000 });
     await expect(completedOffer).toContainText(issueNote, { timeout: 15_000 });
     await expect(completedOffer).toContainText('Uploaded', { timeout: 15_000 });

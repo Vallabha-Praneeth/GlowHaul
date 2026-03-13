@@ -19,6 +19,14 @@ export type DashboardKpi = {
   value: string;
 };
 
+export type DashboardAttentionItem = {
+  actionLabel: string;
+  detail: string;
+  id: string;
+  title: string;
+  tone: BadgeTone;
+};
+
 export type OperatorTruckOption = {
   homeRegion: RegionCode;
   id: string;
@@ -101,9 +109,11 @@ export type OperatorProofReview = {
 
 export type OperatorDashboardData = {
   activeBookings: OperatorActiveBooking[];
+  attentionQueue: DashboardAttentionItem[];
   badgeLabel: string;
   badgeTone: BadgeTone;
   driverOptions: OperatorDriverOption[];
+  healthSummary: DashboardKpi[];
   incomingOffers: OperatorIncomingOffer[];
   inventorySlots: OperatorInventorySlot[];
   kpis: DashboardKpi[];
@@ -168,10 +178,12 @@ export type PlannerSubmittedOffer = {
 };
 
 export type PlannerMarketplaceData = {
+  attentionQueue: DashboardAttentionItem[];
   availableSlots: PlannerAvailableSlot[];
   badgeLabel: string;
   filterPills: PlannerFilterPill[];
   filterState: PlannerMarketplaceFilters;
+  healthSummary: DashboardKpi[];
   regions: RegionCode[];
   sourceLabel: string;
   submittedOffers: PlannerSubmittedOffer[];
@@ -212,11 +224,13 @@ export type DriverUploadedProof = {
 };
 
 export type DriverWorkspaceData = {
+  attentionQueue: DashboardAttentionItem[];
   assignedRuns: DriverAssignedRun[];
   badgeLabel: string;
   badgeTone: BadgeTone;
   proofCallout: string;
   proofUploads: DriverUploadedProof[];
+  shiftSummary: DashboardKpi[];
   sourceLabel: string;
   title: string;
 };
@@ -280,6 +294,15 @@ function getStatusTone(status: string): BadgeTone {
   }
 
   return 'warning';
+}
+
+function isWithinHours(isoValue: string, hours: number) {
+  const delta = new Date(isoValue).getTime() - Date.now();
+  return delta >= 0 && delta <= hours * 60 * 60 * 1000;
+}
+
+function isPastDue(isoValue: string) {
+  return new Date(isoValue).getTime() < Date.now();
 }
 
 function getFileName(path: string) {
@@ -638,9 +661,16 @@ async function getProfilesMap(ids: string[]) {
 export async function getOperatorDashboardData(): Promise<OperatorDashboardData> {
   const fallback: OperatorDashboardData = {
     activeBookings: [],
+    attentionQueue: [],
     badgeLabel: 'No active supply',
     badgeTone: 'warning',
     driverOptions: [],
+    healthSummary: [
+      { label: 'Live routes', value: '0' },
+      { label: 'Needs action', value: '0' },
+      { label: 'Dispatch next 6h', value: '0' },
+      { label: 'Client-ready', value: '0' },
+    ],
     incomingOffers: [],
     inventorySlots: [],
     kpis: [
@@ -790,55 +820,175 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
 
   const pendingOffers = offers.filter((offer) => offer.status === 'pending');
   const pendingProofReviews = proofAssets.filter((asset) => asset.status === 'uploaded');
+  const activeBookingContexts = bookings.map((booking) => {
+    const slot = slotMap.get(booking.slot_id);
+    const truck = slot ? truckMap.get(slot.truck_id) : null;
+    const run = runByBookingId.get(booking.id) ?? null;
+    const proofs = run ? proofsByRun.get(run.id) ?? [] : [];
+    const latestProof = proofs[0] ?? null;
+    const assignedDriver = run?.driver_id ? drivers.get(run.driver_id) : null;
+    const dispatchState = buildOperatorDispatchState(booking, run, proofs.length, latestProof?.status ?? null);
+
+    return {
+      assignedDriver,
+      booking,
+      dispatchState,
+      latestProof,
+      proofs,
+      run,
+      slot,
+      truck,
+    };
+  });
+
+  const activeBookings = activeBookingContexts.map((context) => ({
+    bookingId: context.booking.id,
+    bookingStatus: context.booking.status,
+    campaignName: context.booking.campaign_name,
+    dispatchStageLabel: context.dispatchState.dispatchStageLabel,
+    dispatchStageTone: context.dispatchState.dispatchStageTone,
+    dispatchEndAtInput: formatDateTimeInput(context.run?.scheduled_end_at ?? context.slot?.end_at ?? new Date().toISOString()),
+    dispatchStartAtInput: formatDateTimeInput(context.run?.scheduled_start_at ?? context.slot?.start_at ?? new Date().toISOString()),
+    driverId: context.run?.driver_id ?? '',
+    driverLabel: context.assignedDriver?.full_name ?? context.assignedDriver?.email ?? 'No driver assigned',
+    internalNote: context.booking.internal_note ?? '',
+    issueNote: context.run?.issue_note ?? '',
+    issueReportedAtLabel: formatOptionalDateTime(context.run?.issue_reported_at),
+    issueResolvedAtLabel: formatOptionalDateTime(context.run?.issue_resolved_at),
+    latestProofStatusLabel: context.latestProof ? formatStatus(context.latestProof.status) : 'No proof yet',
+    nextAction: context.dispatchState.nextAction,
+    plannerLabel:
+      plannerOrganizations.get(context.booking.planner_organization_id)?.name ?? 'Planner organization',
+    proofReviewLabel: context.dispatchState.proofReviewLabel,
+    proofReviewTone: context.dispatchState.proofReviewTone,
+    proofRequired: context.run?.proof_required ?? true,
+    proofCountLabel: `${formatPlural(context.proofs.length, 'proof')} logged`,
+    runId: context.run?.id ?? null,
+    runStatus: context.run?.status ?? null,
+    scheduleLabel:
+      context.run && context.slot
+        ? `${buildSlotSummary(context.slot)} • ${formatStatus(context.run.status)}`
+        : context.slot
+          ? buildSlotSummary(context.slot)
+          : 'Campaign schedule unavailable',
+    slotTitle: context.truck ? `${context.truck.display_name} (${context.truck.vehicle_code})` : 'Truck inventory',
+  }));
+
+  const proofReviews = proofAssets.slice(0, 8).map((asset) => {
+    const run = runs.find((entry) => entry.id === asset.run_id);
+    const booking = run ? bookings.find((entry) => entry.id === run.booking_id) : null;
+    const driver = drivers.get(asset.driver_id);
+    const reviewAction = buildProofReviewAction(asset.status, asset.status === 'uploaded');
+    return {
+      assetUrl: getProofAssetHref(asset.id),
+      canReview: asset.status === 'uploaded',
+      driverLabel: driver?.full_name ?? driver?.email ?? 'Assigned driver',
+      fileName: getFileName(asset.storage_path),
+      id: asset.id,
+      nextAction: reviewAction.nextAction,
+      reviewNotes: asset.review_notes ?? '',
+      reviewedAtLabel: asset.reviewed_at ? dateTimeFormatter.format(new Date(asset.reviewed_at)) : null,
+      reviewTone: reviewAction.reviewTone,
+      runTitle: booking?.campaign_name ?? 'Assigned campaign',
+      statusLabel: formatStatus(asset.status),
+      uploadedAtLabel: asset.captured_at
+        ? dateTimeFormatter.format(new Date(asset.captured_at))
+        : dateTimeFormatter.format(new Date(asset.created_at)),
+    };
+  });
+
+  const healthSummary: DashboardKpi[] = [
+    { label: 'Live routes', value: String(activeBookingContexts.filter((context) => context.run?.status === 'live').length) },
+    {
+      label: 'Needs action',
+      value: String(
+        activeBookingContexts.filter((context) => context.run?.status === 'issue').length +
+          pendingProofReviews.length
+      ),
+    },
+    {
+      label: 'Dispatch next 6h',
+      value: String(
+        activeBookingContexts.filter(
+          (context) =>
+            context.slot &&
+            (!context.run || context.run.status === 'assigned') &&
+            isWithinHours(context.run?.scheduled_start_at ?? context.slot.start_at, 6)
+        ).length
+      ),
+    },
+    {
+      label: 'Client-ready',
+      value: String(activeBookingContexts.filter((context) => context.latestProof?.status === 'approved').length),
+    },
+  ];
+
+  const attentionQueue: DashboardAttentionItem[] = [
+    ...activeBookingContexts
+      .filter((context) => context.run?.status === 'issue')
+      .map((context) => ({
+        actionLabel: 'Resolve issue',
+        detail: context.run?.issue_note ?? 'Execution is blocked until the route is reset.',
+        id: `operator-booking-issue-${context.booking.id}`,
+        title: context.booking.campaign_name,
+        tone: 'warning' as const,
+      })),
+    ...proofAssets
+      .filter((asset) => asset.status === 'uploaded')
+      .slice(0, 4)
+      .map((asset) => {
+        const run = runs.find((entry) => entry.id === asset.run_id);
+        const booking = run ? bookings.find((entry) => entry.id === run.booking_id) : null;
+
+        return {
+          actionLabel: 'Review proof',
+          detail: `${getFileName(asset.storage_path)} is waiting for operator review.`,
+          id: `operator-proof-${asset.id}`,
+          title: booking?.campaign_name ?? 'Assigned campaign',
+          tone: 'warning' as const,
+        };
+      }),
+    ...activeBookingContexts
+      .filter(
+        (context) =>
+          context.slot &&
+          (!context.run || context.run.status === 'assigned') &&
+          isPastDue(context.run?.scheduled_start_at ?? context.slot.start_at)
+      )
+      .map((context) => ({
+        actionLabel: 'Update dispatch',
+        detail: 'The launch window has started and the run is not yet moving.',
+        id: `operator-booking-dispatch-${context.booking.id}`,
+        title: context.booking.campaign_name,
+        tone: 'warning' as const,
+      })),
+    ...proofAssets
+      .filter((asset) => asset.status === 'rejected')
+      .slice(0, 2)
+      .map((asset) => {
+        const run = runs.find((entry) => entry.id === asset.run_id);
+        const booking = run ? bookings.find((entry) => entry.id === run.booking_id) : null;
+
+        return {
+          actionLabel: 'Coordinate reshoot',
+          detail: asset.review_notes ?? 'The latest proof was rejected and needs a cleaner replacement.',
+          id: `operator-proof-rejected-${asset.id}`,
+          title: booking?.campaign_name ?? 'Assigned campaign',
+          tone: 'warning' as const,
+        };
+      }),
+  ].slice(0, 6);
 
   return {
-    activeBookings: bookings.map((booking) => {
-      const slot = slotMap.get(booking.slot_id);
-      const truck = slot ? truckMap.get(slot.truck_id) : null;
-      const run = runByBookingId.get(booking.id) ?? null;
-      const proofs = run ? proofsByRun.get(run.id) ?? [] : [];
-      const latestProof = proofs[0] ?? null;
-      const assignedDriver = run?.driver_id ? drivers.get(run.driver_id) : null;
-      const dispatchState = buildOperatorDispatchState(booking, run, proofs.length, latestProof?.status ?? null);
-      return {
-        bookingId: booking.id,
-        bookingStatus: booking.status,
-        campaignName: booking.campaign_name,
-        dispatchStageLabel: dispatchState.dispatchStageLabel,
-        dispatchStageTone: dispatchState.dispatchStageTone,
-        dispatchEndAtInput: formatDateTimeInput(run?.scheduled_end_at ?? slot?.end_at ?? new Date().toISOString()),
-        dispatchStartAtInput: formatDateTimeInput(run?.scheduled_start_at ?? slot?.start_at ?? new Date().toISOString()),
-        driverId: run?.driver_id ?? '',
-        driverLabel: assignedDriver?.full_name ?? assignedDriver?.email ?? 'No driver assigned',
-        internalNote: booking.internal_note ?? '',
-        issueNote: run?.issue_note ?? '',
-        issueReportedAtLabel: formatOptionalDateTime(run?.issue_reported_at),
-        issueResolvedAtLabel: formatOptionalDateTime(run?.issue_resolved_at),
-        latestProofStatusLabel: latestProof ? formatStatus(latestProof.status) : 'No proof yet',
-        nextAction: dispatchState.nextAction,
-        plannerLabel:
-          plannerOrganizations.get(booking.planner_organization_id)?.name ?? 'Planner organization',
-        proofReviewLabel: dispatchState.proofReviewLabel,
-        proofReviewTone: dispatchState.proofReviewTone,
-        proofRequired: run?.proof_required ?? true,
-        proofCountLabel: `${formatPlural(proofs.length, 'proof')} logged`,
-        runId: run?.id ?? null,
-        runStatus: run?.status ?? null,
-        scheduleLabel:
-          run && slot
-            ? `${buildSlotSummary(slot)} • ${formatStatus(run.status)}`
-            : slot
-              ? buildSlotSummary(slot)
-              : 'Campaign schedule unavailable',
-        slotTitle: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
-      };
-    }),
+    activeBookings,
+    attentionQueue,
     badgeLabel: pendingOffers.length > 0 ? `${formatPlural(pendingOffers.length, 'offer')} waiting` : `${formatPlural(slots.length, 'tracked slot')}`,
     badgeTone: slots.length > 0 ? 'success' : 'warning',
     driverOptions: organizationDrivers.map((driver) => ({
       id: driver.id,
       label: driver.full_name ?? driver.email,
     })),
+    healthSummary,
     incomingOffers: offers.slice(0, 8).map((offer) => {
       const slot = slotMap.get(offer.slot_id);
       const truck = slot ? truckMap.get(slot.truck_id) : null;
@@ -878,28 +1028,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       { label: 'Active campaigns', value: String(bookings.length) },
       { label: 'Proof reviews', value: String(pendingProofReviews.length) },
     ],
-    proofReviews: proofAssets.slice(0, 8).map((asset) => {
-      const run = runs.find((entry) => entry.id === asset.run_id);
-      const booking = run ? bookings.find((entry) => entry.id === run.booking_id) : null;
-      const driver = drivers.get(asset.driver_id);
-      const reviewAction = buildProofReviewAction(asset.status, asset.status === 'uploaded');
-      return {
-        assetUrl: getProofAssetHref(asset.id),
-        canReview: asset.status === 'uploaded',
-        driverLabel: driver?.full_name ?? driver?.email ?? 'Assigned driver',
-        fileName: getFileName(asset.storage_path),
-        id: asset.id,
-        nextAction: reviewAction.nextAction,
-        reviewNotes: asset.review_notes ?? '',
-        reviewedAtLabel: asset.reviewed_at ? dateTimeFormatter.format(new Date(asset.reviewed_at)) : null,
-        reviewTone: reviewAction.reviewTone,
-        runTitle: booking?.campaign_name ?? 'Assigned campaign',
-        statusLabel: formatStatus(asset.status),
-        uploadedAtLabel: asset.captured_at
-          ? dateTimeFormatter.format(new Date(asset.captured_at))
-          : dateTimeFormatter.format(new Date(asset.created_at)),
-      };
-    }),
+    proofReviews,
     sourceLabel: organization?.name
       ? `Authenticated operator view for ${organization.name}`
       : 'Authenticated operator view',
@@ -916,10 +1045,17 @@ export async function getPlannerMarketplaceData(
   filters: PlannerMarketplaceFilters
 ): Promise<PlannerMarketplaceData> {
   const fallback: PlannerMarketplaceData = {
+    attentionQueue: [],
     availableSlots: [],
     badgeLabel: '0 slots visible',
     filterPills: [],
     filterState: filters,
+    healthSummary: [
+      { label: 'At risk', value: '0' },
+      { label: 'Live now', value: '0' },
+      { label: 'Awaiting proof', value: '0' },
+      { label: 'Client-ready', value: '0' },
+    ],
     regions: ['DFW'],
     sourceLabel: 'Authenticated planner view',
     submittedOffers: [],
@@ -1088,6 +1224,117 @@ export async function getPlannerMarketplaceData(
     { label: 'My active offers', value: String(offers.filter((offer) => offer.status === 'pending').length) },
   ];
 
+  const submittedOfferContexts = offers.map((offer) => {
+    const booking = bookingByOfferId.get(offer.id);
+    const slot = slots.find((entry) => entry.id === offer.slot_id);
+    const truck = slot ? truckMap.get(slot.truck_id) : null;
+    const run = booking ? runByBookingId.get(booking.id) : null;
+    const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
+    const execution = buildPlannerExecutionLabels(booking, run, proofs);
+
+    return {
+      booking,
+      execution,
+      offer,
+      proofs,
+      run,
+      slot,
+      truck,
+    };
+  });
+
+  const healthSummary: DashboardKpi[] = [
+    {
+      label: 'At risk',
+      value: String(
+        submittedOfferContexts.filter(
+          (context) =>
+            context.execution.campaignStageLabel === 'Issue' ||
+            context.execution.campaignStageLabel === 'Proof rejected' ||
+            context.execution.campaignStageLabel === 'Dispatch pending'
+        ).length
+      ),
+    },
+    {
+      label: 'Live now',
+      value: String(submittedOfferContexts.filter((context) => context.execution.campaignStageLabel === 'Live').length),
+    },
+    {
+      label: 'Awaiting proof',
+      value: String(
+        submittedOfferContexts.filter(
+          (context) =>
+            context.execution.campaignStageLabel === 'Proof review' ||
+            (context.run?.proof_required && ['assigned', 'en_route', 'live'].includes(context.run.status))
+        ).length
+      ),
+    },
+    {
+      label: 'Client-ready',
+      value: String(submittedOfferContexts.filter((context) => context.execution.campaignStageLabel === 'Closed').length),
+    },
+  ];
+
+  const attentionQueue: DashboardAttentionItem[] = [
+    ...submittedOfferContexts
+      .filter((context) => context.execution.campaignStageLabel === 'Issue')
+      .map((context) => ({
+        actionLabel: 'Watch operator recovery',
+        detail: context.execution.issueNote ?? 'Execution issue is blocking the route.',
+        id: `planner-issue-${context.offer.id}`,
+        title: context.booking?.campaign_name ?? context.truck?.display_name ?? 'Tracked campaign',
+        tone: 'warning' as const,
+      })),
+    ...submittedOfferContexts
+      .filter((context) => context.execution.campaignStageLabel === 'Proof review')
+      .map((context) => ({
+        actionLabel: 'Wait for approval',
+        detail: 'The latest proof upload is waiting on operator review.',
+        id: `planner-proof-review-${context.offer.id}`,
+        title: context.booking?.campaign_name ?? context.truck?.display_name ?? 'Tracked campaign',
+        tone: 'warning' as const,
+      })),
+    ...submittedOfferContexts
+      .filter((context) => context.execution.campaignStageLabel === 'Dispatch pending')
+      .map((context) => ({
+        actionLabel: 'Expect dispatch plan',
+        detail: 'The offer is booked, but operator dispatch details are still pending.',
+        id: `planner-dispatch-${context.offer.id}`,
+        title: context.booking?.campaign_name ?? context.truck?.display_name ?? 'Tracked campaign',
+        tone: 'warning' as const,
+      })),
+    ...submittedOfferContexts
+      .filter((context) => context.offer.status === 'pending')
+      .map((context) => ({
+        actionLabel: 'Wait for response',
+        detail: `Offer updated ${dateTimeFormatter.format(new Date(context.offer.updated_at))}.`,
+        id: `planner-offer-${context.offer.id}`,
+        title: context.truck ? `${context.truck.display_name} (${context.truck.vehicle_code})` : 'Submitted offer',
+        tone: 'warning' as const,
+      })),
+  ].slice(0, 6);
+
+  const submittedOffers = submittedOfferContexts.map((context) => ({
+    amountLabel: formatCurrency(context.offer.amount_cents),
+    bookingLabel: context.booking ? `${formatStatus(context.booking.status)} • ${context.booking.campaign_name}` : null,
+    campaignStageLabel: context.execution.campaignStageLabel,
+    campaignStageTone: context.execution.campaignStageTone,
+    executionLabel: context.execution.executionLabel,
+    id: context.offer.id,
+    issueNote: context.execution.issueNote,
+    issueUpdatedLabel: context.execution.issueUpdatedLabel,
+    message: context.offer.message,
+    nextAction: context.execution.nextAction,
+    operatorNote: context.offer.operator_note ?? context.booking?.internal_note ?? null,
+    proofLabel: context.execution.proofLabel,
+    proofTone: context.execution.proofTone,
+    slotTitle: context.truck ? `${context.truck.display_name} (${context.truck.vehicle_code})` : 'Truck inventory',
+    statusLabel: formatStatus(context.offer.status),
+    statusTone: getStatusTone(context.offer.status),
+    timeline: context.execution.timeline,
+    updatedLabel: dateTimeFormatter.format(new Date(context.offer.updated_at)),
+  }));
+
   return {
     availableSlots: filteredSlots.map((slot) => {
       const truck = truckMap.get(slot.truck_id);
@@ -1118,9 +1365,11 @@ export async function getPlannerMarketplaceData(
         title: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
       };
     }),
+    attentionQueue,
     badgeLabel: `${formatPlural(filteredSlots.length, 'slot')} visible`,
     filterPills,
     filterState: filters,
+    healthSummary,
     regions: regions.length > 0 ? regions : fallback.regions,
     sourceLabel: organization?.name
       ? `Authenticated planner view for ${organization.name}`
@@ -1131,45 +1380,25 @@ export async function getPlannerMarketplaceData(
       { label: 'Live routes', value: String(trackedRuns.filter((run) => run.status === 'live').length) },
       { label: 'Proof review', value: String(trackedProofAssets.filter((asset) => asset.status === 'uploaded').length) },
     ],
-    submittedOffers: offers.map((offer) => {
-      const booking = bookingByOfferId.get(offer.id);
-      const slot = slots.find((entry) => entry.id === offer.slot_id);
-      const truck = slot ? truckMap.get(slot.truck_id) : null;
-      const run = booking ? runByBookingId.get(booking.id) : null;
-      const proofs = run ? proofsByRunId.get(run.id) ?? [] : [];
-      const execution = buildPlannerExecutionLabels(booking, run, proofs);
-      return {
-        amountLabel: formatCurrency(offer.amount_cents),
-        bookingLabel: booking ? `${formatStatus(booking.status)} • ${booking.campaign_name}` : null,
-        campaignStageLabel: execution.campaignStageLabel,
-        campaignStageTone: execution.campaignStageTone,
-        executionLabel: execution.executionLabel,
-        id: offer.id,
-        issueNote: execution.issueNote,
-        issueUpdatedLabel: execution.issueUpdatedLabel,
-        message: offer.message,
-        nextAction: execution.nextAction,
-        operatorNote: offer.operator_note ?? booking?.internal_note ?? null,
-        proofLabel: execution.proofLabel,
-        proofTone: execution.proofTone,
-        slotTitle: truck ? `${truck.display_name} (${truck.vehicle_code})` : 'Truck inventory',
-        statusLabel: formatStatus(offer.status),
-        statusTone: getStatusTone(offer.status),
-        timeline: execution.timeline,
-        updatedLabel: dateTimeFormatter.format(new Date(offer.updated_at)),
-      };
-    }),
+    submittedOffers,
     title: 'Search mobile inventory fast.',
   };
 }
 
 export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
   const fallback: DriverWorkspaceData = {
+    attentionQueue: [],
     assignedRuns: [],
     badgeLabel: 'Proof upload pending',
     badgeTone: 'warning',
     proofCallout: 'Supabase proof storage is wired, but no assigned run data is currently available.',
     proofUploads: [],
+    shiftSummary: [
+      { label: 'Live now', value: '0' },
+      { label: 'Blocked', value: '0' },
+      { label: 'Need proof', value: '0' },
+      { label: 'Approved', value: '0' },
+    ],
     sourceLabel: 'Authenticated driver view',
     title: 'Execute runs without call-chain chaos.',
   };
@@ -1232,32 +1461,94 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
     proofsByRun.set(asset.run_id, group);
   });
   const approvedProofs = proofAssets.filter((asset) => asset.status === 'approved');
+  const runContexts = runs.map((run) => {
+    const booking = bookingMap.get(run.booking_id);
+    const proofs = proofsByRun.get(run.id) ?? [];
+    const latestProof = proofs[0] ?? null;
+    const proofAction = buildDriverProofAction(latestProof, run.proof_required, run);
+
+    return {
+      booking,
+      latestProof,
+      proofAction,
+      proofs,
+      run,
+    };
+  });
+
+  const shiftSummary: DashboardKpi[] = [
+    { label: 'Live now', value: String(runContexts.filter((context) => context.run.status === 'live').length) },
+    { label: 'Blocked', value: String(runContexts.filter((context) => context.run.status === 'issue').length) },
+    {
+      label: 'Need proof',
+      value: String(
+        runContexts.filter(
+          (context) => context.run.status === 'live' && context.run.proof_required && context.proofs.length === 0
+        ).length
+      ),
+    },
+    { label: 'Approved', value: String(approvedProofs.length) },
+  ];
+
+  const attentionQueue: DashboardAttentionItem[] = [
+    ...runContexts
+      .filter((context) => context.run.status === 'issue')
+      .map((context) => ({
+        actionLabel: 'Wait for operator reset',
+        detail: context.run.issue_note ?? 'This route is paused until the issue is resolved.',
+        id: `driver-issue-${context.run.id}`,
+        title: context.booking?.campaign_name ?? 'Assigned campaign',
+        tone: 'warning' as const,
+      })),
+    ...runContexts
+      .filter((context) => context.run.status === 'live' && context.run.proof_required && context.proofs.length === 0)
+      .map((context) => ({
+        actionLabel: 'Upload proof',
+        detail: 'This route cannot be completed until at least one proof file is uploaded.',
+        id: `driver-proof-needed-${context.run.id}`,
+        title: context.booking?.campaign_name ?? 'Assigned campaign',
+        tone: 'warning' as const,
+      })),
+    ...runContexts
+      .filter((context) => context.latestProof?.status === 'rejected')
+      .map((context) => ({
+        actionLabel: 'Reshoot proof',
+        detail: context.latestProof?.review_notes ?? 'The operator requested a cleaner upload.',
+        id: `driver-proof-rejected-${context.run.id}`,
+        title: context.booking?.campaign_name ?? 'Assigned campaign',
+        tone: 'warning' as const,
+      })),
+    ...runContexts
+      .filter((context) => context.run.status === 'assigned' && isWithinHours(context.run.scheduled_start_at, 2))
+      .map((context) => ({
+        actionLabel: 'Go en route',
+        detail: `Launch window opens ${formatOptionalDateTime(context.run.scheduled_start_at) ?? 'soon'}.`,
+        id: `driver-assigned-${context.run.id}`,
+        title: context.booking?.campaign_name ?? 'Assigned campaign',
+        tone: 'success' as const,
+      })),
+  ].slice(0, 6);
 
   return {
-    assignedRuns: runs.map((run) => {
-      const booking = bookingMap.get(run.booking_id);
-      const proofs = proofsByRun.get(run.id) ?? [];
-      const latestProof = proofs[0] ?? null;
-      const proofAction = buildDriverProofAction(latestProof, run.proof_required, run);
-      return {
-        bookingStatusLabel: booking ? formatStatus(booking.status) : 'Booking pending',
-        detail: `${formatTimeWindow(run.scheduled_start_at, run.scheduled_end_at)} • ${formatStatus(run.status)}`,
-        id: run.id,
-        issueNote: run.issue_note,
-        issueReportedAtLabel: formatOptionalDateTime(run.issue_reported_at),
-        issueResolvedAtLabel: formatOptionalDateTime(run.issue_resolved_at),
-        latestProofReviewNotes: latestProof?.review_notes ?? booking?.internal_note ?? null,
-        latestProofStatusLabel: latestProof ? formatStatus(latestProof.status) : 'Awaiting first upload',
-        proofActionCallout: proofAction.proofActionCallout,
-        proofActionTone: proofAction.proofActionTone,
-        proofCount: proofs.length,
-        proofCountLabel: `${formatPlural(proofs.length, 'proof')} logged`,
-        proofRequired: run.proof_required,
-        runStatus: run.status,
-        statusLabel: formatStatus(run.status),
-        title: booking?.campaign_name ?? 'Assigned campaign',
-      };
-    }),
+    attentionQueue,
+    assignedRuns: runContexts.map((context) => ({
+      bookingStatusLabel: context.booking ? formatStatus(context.booking.status) : 'Booking pending',
+      detail: `${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)} • ${formatStatus(context.run.status)}`,
+      id: context.run.id,
+      issueNote: context.run.issue_note,
+      issueReportedAtLabel: formatOptionalDateTime(context.run.issue_reported_at),
+      issueResolvedAtLabel: formatOptionalDateTime(context.run.issue_resolved_at),
+      latestProofReviewNotes: context.latestProof?.review_notes ?? context.booking?.internal_note ?? null,
+      latestProofStatusLabel: context.latestProof ? formatStatus(context.latestProof.status) : 'Awaiting first upload',
+      proofActionCallout: context.proofAction.proofActionCallout,
+      proofActionTone: context.proofAction.proofActionTone,
+      proofCount: context.proofs.length,
+      proofCountLabel: `${formatPlural(context.proofs.length, 'proof')} logged`,
+      proofRequired: context.run.proof_required,
+      runStatus: context.run.status,
+      statusLabel: formatStatus(context.run.status),
+      title: context.booking?.campaign_name ?? 'Assigned campaign',
+    })),
     badgeLabel:
       approvedProofs.length > 0
         ? `${formatPlural(approvedProofs.length, 'proof')} approved`
@@ -1290,6 +1581,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
         tone: getStatusTone(asset.status),
       };
     }),
+    shiftSummary,
     sourceLabel: `Authenticated driver view for ${profile.full_name ?? profile.email}`,
     title: 'Execute runs without call-chain chaos.',
   };
