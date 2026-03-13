@@ -299,15 +299,15 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                   <span style={{ fontWeight: 700 }}>{item.title}</span>
                   <span className={`badge ${item.tone}`}>{item.statusLabel}</span>
                 </div>
-              <div className="fine">{item.detail}</div>
-              {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
-              <a className="fine" data-testid={`driver-history-recap-link-${item.id}`} href={item.recapHref}>
-                Open recap
-              </a>
-            </div>
-          )) : (
-            <div className="fine">No recent completed runs are archived yet.</div>
-          )}
+                <div className="fine">{item.detail}</div>
+                {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
+                <a className="fine" data-testid={`driver-history-recap-link-${item.id}`} href={item.recapHref}>
+                  Open recap
+                </a>
+              </div>
+            )) : (
+              <div className="fine">No recent completed runs are archived yet.</div>
+            )}
           </div>
         </section>
       </section>

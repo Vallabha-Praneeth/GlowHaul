@@ -117,7 +117,7 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
                 <div className="fine">{proof.driverLabel} • {proof.capturedAtLabel}</div>
                 {proof.reviewedAtLabel ? <div className="fine">Reviewed {proof.reviewedAtLabel}</div> : null}
                 {proof.reviewNotes ? <div className="fine">Review note: {proof.reviewNotes}</div> : null}
-                <a className="fine" href={proof.assetHref}>
+                <a className="fine" data-testid={`campaign-recap-proof-link-${proof.id}`} href={proof.assetHref}>
                   Open proof asset
                 </a>
               </div>

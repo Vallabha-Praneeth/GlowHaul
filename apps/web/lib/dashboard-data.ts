@@ -1,5 +1,18 @@
 import type { Database } from '../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from './auth';
+import {
+  dateFormatter,
+  dateTimeFormatter,
+  formatCurrency,
+  formatOptionalDateTime,
+  formatPlural,
+  formatStatus,
+  formatTimeWindow,
+  getFileName,
+  getProofAssetHref,
+  getStatusTone,
+  timeFormatter,
+} from './formatters';
 import { createServerSupabaseClient } from './supabase/server';
 
 type BadgeTone = 'success' | 'warning';
@@ -251,65 +264,8 @@ export type DriverWorkspaceData = {
   title: string;
 };
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  day: 'numeric',
-  month: 'short',
-  timeZone: 'America/Chicago',
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-  month: 'short',
-  timeZone: 'America/Chicago',
-});
-
-const timeFormatter = new Intl.DateTimeFormat('en-US', {
-  hour: 'numeric',
-  minute: '2-digit',
-  timeZone: 'America/Chicago',
-});
-
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat('en-US', {
-    currency: 'USD',
-    maximumFractionDigits: 0,
-    style: 'currency',
-  }).format(cents / 100);
-}
-
-function formatTimeWindow(startAt: string, endAt: string) {
-  const start = new Date(startAt);
-  const end = new Date(endAt);
-  return `${dateFormatter.format(start)} • ${timeFormatter.format(start)}-${timeFormatter.format(end)}`;
-}
-
 function formatDateTimeInput(isoValue: string) {
   return new Date(isoValue).toISOString().slice(0, 16);
-}
-
-function formatOptionalDateTime(value: string | null | undefined) {
-  return value ? dateTimeFormatter.format(new Date(value)) : null;
-}
-
-function formatPlural(count: number, singular: string, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function formatStatus(status: string) {
-  return status
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function getStatusTone(status: string): BadgeTone {
-  if (['accepted', 'approved', 'booked', 'completed', 'confirmed', 'live', 'running'].includes(status)) {
-    return 'success';
-  }
-
-  return 'warning';
 }
 
 function isWithinHours(isoValue: string, hours: number) {
@@ -319,15 +275,6 @@ function isWithinHours(isoValue: string, hours: number) {
 
 function isPastDue(isoValue: string) {
   return new Date(isoValue).getTime() < Date.now();
-}
-
-function getFileName(path: string) {
-  const parts = path.split('/');
-  return parts[parts.length - 1] ?? path;
-}
-
-function getProofAssetHref(id: string) {
-  return `/proof/${id}`;
 }
 
 function getCampaignRecapHref(bookingId: string) {
@@ -1387,16 +1334,18 @@ export async function getPlannerMarketplaceData(
 
   const recentHistory: DashboardHistoryItem[] = submittedOfferContexts
     .filter(
-      (context) =>
-        !!context.booking &&
-        ['Cancelled', 'Closed', 'Proof rejected'].includes(context.execution.campaignStageLabel)
+      (
+        context,
+      ): context is (typeof submittedOfferContexts)[number] & {
+        booking: NonNullable<(typeof submittedOfferContexts)[number]['booking']>;
+      } => Boolean(context.booking) && ['Cancelled', 'Closed', 'Proof rejected'].includes(context.execution.campaignStageLabel)
     )
     .slice(0, 6)
     .map((context) => ({
       detail: context.execution.executionLabel ?? context.execution.nextAction,
       id: `planner-history-${context.offer.id}`,
       proofLabel: context.execution.proofLabel,
-      recapHref: getCampaignRecapHref(context.booking!.id),
+      recapHref: getCampaignRecapHref(context.booking.id),
       statusLabel: context.execution.campaignStageLabel,
       title: context.booking?.campaign_name ?? context.slot?.campaign_notes ?? 'Tracked campaign',
       tone: context.execution.campaignStageTone,
