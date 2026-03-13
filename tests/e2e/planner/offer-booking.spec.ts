@@ -261,6 +261,18 @@ test('planner offer can be submitted and later shows execution and proof state v
     await expect(proofVisibleOffer).toContainText('Uploaded', { timeout: 15_000 });
     await expect(proofVisibleOffer).toContainText('proof logged', { timeout: 15_000 });
     await expect(page.getByTestId('planner-attention-queue')).toContainText('Wait for approval', { timeout: 15_000 });
+    await expect(proofVisibleOffer.getByRole('link', { name: 'Open recap' })).toBeVisible();
+
+    await Promise.all([
+      page.waitForURL((url) => url.pathname.startsWith('/campaigns/'), { timeout: 30_000 }),
+      proofVisibleOffer.getByRole('link', { name: 'Open recap' }).click(),
+    ]);
+
+    await expect(page.getByTestId('campaign-recap-page')).toBeVisible();
+    await expect(page.getByTestId('campaign-recap-title')).toContainText(campaignName);
+    await expect(page.getByTestId('campaign-recap-summary')).toContainText(issueNote);
+    await expect(page.getByTestId('campaign-recap-proof-list')).toContainText(proofFileName);
+    await expect(page.getByTestId('campaign-recap-timeline')).toContainText('Proof Uploaded');
   } finally {
     await operatorContext.close();
     await driverContext.close();

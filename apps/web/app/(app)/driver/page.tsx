@@ -238,6 +238,15 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                         Upload proof
                       </button>
                     </form>
+
+                    <a
+                      className="fine"
+                      data-testid={`driver-run-recap-link-${run.id}`}
+                      href={run.recapHref}
+                      style={{ marginTop: 14 }}
+                    >
+                      Open recap
+                    </a>
                   </div>
                 );
               }) : (
@@ -292,6 +301,9 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                 </div>
                 <div className="fine">{item.detail}</div>
                 {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
+                <a className="fine" data-testid={`driver-history-recap-link-${item.id}`} href={item.recapHref}>
+                  Open recap
+                </a>
               </div>
             )) : (
               <div className="fine">No recent completed runs are archived yet.</div>

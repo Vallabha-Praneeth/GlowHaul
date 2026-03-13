@@ -1,5 +1,18 @@
 import type { Database } from '../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from './auth';
+import {
+  dateFormatter,
+  dateTimeFormatter,
+  formatCurrency,
+  formatOptionalDateTime,
+  formatPlural,
+  formatStatus,
+  formatTimeWindow,
+  getFileName,
+  getProofAssetHref,
+  getStatusTone,
+  timeFormatter,
+} from './formatters';
 import { createServerSupabaseClient } from './supabase/server';
 
 type BadgeTone = 'success' | 'warning';
@@ -31,6 +44,7 @@ export type DashboardHistoryItem = {
   detail: string;
   id: string;
   proofLabel: string | null;
+  recapHref: string;
   statusLabel: string;
   tone: BadgeTone;
   title: string;
@@ -90,6 +104,7 @@ export type OperatorActiveBooking = {
   proofReviewTone: BadgeTone;
   proofRequired: boolean;
   proofCountLabel: string;
+  recapHref: string;
   runId: string | null;
   runStatus: RunRow['status'] | null;
   scheduleLabel: string;
@@ -180,6 +195,7 @@ export type PlannerSubmittedOffer = {
   operatorNote: string | null;
   proofLabel: string | null;
   proofTone: BadgeTone | null;
+  recapHref: string | null;
   slotTitle: string;
   statusLabel: string;
   statusTone: BadgeTone;
@@ -216,6 +232,7 @@ export type DriverAssignedRun = {
   proofCount: number;
   proofCountLabel: string;
   proofRequired: boolean;
+  recapHref: string;
   runStatus: RunRow['status'];
   statusLabel: string;
   title: string;
@@ -247,65 +264,8 @@ export type DriverWorkspaceData = {
   title: string;
 };
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  day: 'numeric',
-  month: 'short',
-  timeZone: 'America/Chicago',
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-  month: 'short',
-  timeZone: 'America/Chicago',
-});
-
-const timeFormatter = new Intl.DateTimeFormat('en-US', {
-  hour: 'numeric',
-  minute: '2-digit',
-  timeZone: 'America/Chicago',
-});
-
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat('en-US', {
-    currency: 'USD',
-    maximumFractionDigits: 0,
-    style: 'currency',
-  }).format(cents / 100);
-}
-
-function formatTimeWindow(startAt: string, endAt: string) {
-  const start = new Date(startAt);
-  const end = new Date(endAt);
-  return `${dateFormatter.format(start)} • ${timeFormatter.format(start)}-${timeFormatter.format(end)}`;
-}
-
 function formatDateTimeInput(isoValue: string) {
   return new Date(isoValue).toISOString().slice(0, 16);
-}
-
-function formatOptionalDateTime(value: string | null | undefined) {
-  return value ? dateTimeFormatter.format(new Date(value)) : null;
-}
-
-function formatPlural(count: number, singular: string, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function formatStatus(status: string) {
-  return status
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function getStatusTone(status: string): BadgeTone {
-  if (['accepted', 'approved', 'booked', 'completed', 'confirmed', 'live', 'running'].includes(status)) {
-    return 'success';
-  }
-
-  return 'warning';
 }
 
 function isWithinHours(isoValue: string, hours: number) {
@@ -317,13 +277,8 @@ function isPastDue(isoValue: string) {
   return new Date(isoValue).getTime() < Date.now();
 }
 
-function getFileName(path: string) {
-  const parts = path.split('/');
-  return parts[parts.length - 1] ?? path;
-}
-
-function getProofAssetHref(id: string) {
-  return `/proof/${id}`;
+function getCampaignRecapHref(bookingId: string) {
+  return `/campaigns/${bookingId}`;
 }
 
 function buildOperatorDispatchState(
@@ -876,6 +831,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     proofReviewTone: context.dispatchState.proofReviewTone,
     proofRequired: context.run?.proof_required ?? true,
     proofCountLabel: `${formatPlural(context.proofs.length, 'proof')} logged`,
+    recapHref: getCampaignRecapHref(context.booking.id),
     runId: context.run?.id ?? null,
     runStatus: context.run?.status ?? null,
     scheduleLabel:
@@ -1008,6 +964,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
           : 'Campaign schedule unavailable',
       id: `operator-history-${context.booking.id}`,
       proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+      recapHref: getCampaignRecapHref(context.booking.id),
       statusLabel: formatStatus(context.booking.status),
       title: context.booking.campaign_name,
       tone:
@@ -1367,6 +1324,7 @@ export async function getPlannerMarketplaceData(
     operatorNote: context.offer.operator_note ?? context.booking?.internal_note ?? null,
     proofLabel: context.execution.proofLabel,
     proofTone: context.execution.proofTone,
+    recapHref: context.booking ? getCampaignRecapHref(context.booking.id) : null,
     slotTitle: context.truck ? `${context.truck.display_name} (${context.truck.vehicle_code})` : 'Truck inventory',
     statusLabel: formatStatus(context.offer.status),
     statusTone: getStatusTone(context.offer.status),
@@ -1376,16 +1334,18 @@ export async function getPlannerMarketplaceData(
 
   const recentHistory: DashboardHistoryItem[] = submittedOfferContexts
     .filter(
-      (context) =>
-        context.execution.campaignStageLabel === 'Closed' ||
-        context.execution.campaignStageLabel === 'Cancelled' ||
-        context.execution.campaignStageLabel === 'Proof rejected'
+      (
+        context,
+      ): context is (typeof submittedOfferContexts)[number] & {
+        booking: NonNullable<(typeof submittedOfferContexts)[number]['booking']>;
+      } => Boolean(context.booking) && ['Cancelled', 'Closed', 'Proof rejected'].includes(context.execution.campaignStageLabel)
     )
     .slice(0, 6)
     .map((context) => ({
       detail: context.execution.executionLabel ?? context.execution.nextAction,
       id: `planner-history-${context.offer.id}`,
       proofLabel: context.execution.proofLabel,
+      recapHref: getCampaignRecapHref(context.booking.id),
       statusLabel: context.execution.campaignStageLabel,
       title: context.booking?.campaign_name ?? context.slot?.campaign_notes ?? 'Tracked campaign',
       tone: context.execution.campaignStageTone,
@@ -1599,6 +1559,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       detail: `${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)} • ${context.proofAction.proofActionCallout}`,
       id: `driver-history-${context.run.id}`,
       proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+      recapHref: getCampaignRecapHref(context.run.booking_id),
       statusLabel: formatStatus(context.run.status),
       title: context.booking?.campaign_name ?? 'Assigned campaign',
       tone:
@@ -1623,6 +1584,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       proofCount: context.proofs.length,
       proofCountLabel: `${formatPlural(context.proofs.length, 'proof')} logged`,
       proofRequired: context.run.proof_required,
+      recapHref: getCampaignRecapHref(context.run.booking_id),
       runStatus: context.run.status,
       statusLabel: formatStatus(context.run.status),
       title: context.booking?.campaign_name ?? 'Assigned campaign',

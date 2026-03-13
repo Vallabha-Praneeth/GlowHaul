@@ -422,6 +422,13 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                   <button className="button-secondary" data-testid="operator-cancel-campaign-submit" name="intent" type="submit" value="cancel">
                     Cancel campaign
                   </button>
+                  <a
+                    className="button-secondary"
+                    data-testid={`operator-campaign-recap-link-${booking.bookingId}`}
+                    href={booking.recapHref}
+                  >
+                    Open recap
+                  </a>
                 </div>
               </form>
             )) : (
@@ -523,6 +530,9 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
               </div>
               <div className="fine">{item.detail}</div>
               {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
+              <a className="fine" data-testid={`operator-history-recap-link-${item.id}`} href={item.recapHref}>
+                Open recap
+              </a>
             </div>
           )) : (
             <div className="fine">No completed or cancelled campaigns are available yet.</div>

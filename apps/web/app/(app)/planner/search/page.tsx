@@ -284,6 +284,16 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
                     <span className="pill" key={`${offer.id}-${item}`}>{item}</span>
                   ))}
                 </div>
+                {offer.recapHref ? (
+                  <a
+                    className="fine"
+                    data-testid={`planner-offer-recap-link-${offer.id}`}
+                    href={offer.recapHref}
+                    style={{ marginTop: 8 }}
+                  >
+                    Open recap
+                  </a>
+                ) : null}
               </div>
             )) : (
               <div className="fine">No offers have been submitted yet.</div>
@@ -311,6 +321,9 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
               </div>
               <div className="fine">{item.detail}</div>
               {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
+              <a className="fine" data-testid={`planner-history-recap-link-${item.id}`} href={item.recapHref}>
+                Open recap
+              </a>
             </div>
           )) : (
             <div className="fine">No completed planner campaigns are archived yet.</div>
