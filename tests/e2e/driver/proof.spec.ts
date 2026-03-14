@@ -121,6 +121,7 @@ test('driver can upload proof into Supabase storage and receive operator review 
     await expect(driverHistory).toContainText('Proof: Approved', { timeout: 30_000 });
     await driverHistory.getByLabel('Proof').selectOption('approved');
     await driverHistory.getByRole('button', { name: 'Apply archive filters' }).click();
+    await expect.poll(() => new URL(page.url()).searchParams.get('historyProof')).toBe('approved');
     await expect(driverHistory).toContainText('Proof: Approved');
   } finally {
     await operatorContext.close();

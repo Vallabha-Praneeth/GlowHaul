@@ -323,7 +323,7 @@ function getHistoryCloseoutLabel(
     return 'Client-ready';
   }
 
-  return 'Completed';
+  return booking.status === 'completed' ? 'Completed' : formatStatus(booking.status);
 }
 
 function matchesHistoryFilters(
@@ -339,7 +339,13 @@ function matchesHistoryFilters(
   const query = filters.query.trim().toLowerCase();
 
   if (query) {
-    const searchable = [item.title, item.detail, item.region ?? '', item.closeoutLabel]
+    const searchable = [
+      item.title,
+      item.detail,
+      item.region ?? '',
+      item.closeoutLabel,
+      item.proofStatus ? formatStatus(item.proofStatus) : 'Missing proof',
+    ]
       .join(' ')
       .toLowerCase();
 

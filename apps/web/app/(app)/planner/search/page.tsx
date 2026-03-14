@@ -377,6 +377,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
               <span className="fine">Archive search</span>
               <input
                 className="input"
+                data-testid="archive-history-query"
                 defaultValue={data.historyFilters.query}
                 name="historyQuery"
                 placeholder="Campaign, region, recap status"
@@ -385,7 +386,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
             </label>
             <label className="form-field">
               <span className="fine">Closeout state</span>
-              <select className="input" defaultValue={data.historyFilters.status} name="historyStatus">
+              <select className="input" data-testid="archive-history-status" defaultValue={data.historyFilters.status} name="historyStatus">
                 <option value="all">All closeout states</option>
                 <option value="client_ready">Client-ready</option>
                 <option value="closed">Closed</option>
@@ -394,7 +395,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
             </label>
             <label className="form-field">
               <span className="fine">Proof</span>
-              <select className="input" defaultValue={data.historyFilters.proof} name="historyProof">
+              <select className="input" data-testid="archive-history-proof" defaultValue={data.historyFilters.proof} name="historyProof">
                 <option value="all">All proof states</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
@@ -403,7 +404,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
             </label>
             <label className="form-field">
               <span className="fine">Region</span>
-              <select className="input" defaultValue={data.historyFilters.region} name="historyRegion">
+              <select className="input" data-testid="archive-history-region" defaultValue={data.historyFilters.region} name="historyRegion">
                 <option value="all">All regions</option>
                 {data.regions.map((region) => (
                   <option key={region} value={region}>
@@ -413,13 +414,13 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
               </select>
             </label>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div data-testid="archive-filter-pills" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {data.historyFilterPills.map((item) => (
               <span className="pill" key={item.label}>{item.label}: {item.value}</span>
             ))}
           </div>
           <div>
-            <button className="button-secondary" type="submit">Apply archive filters</button>
+            <button className="button-secondary" data-testid="archive-apply-button" type="submit">Apply archive filters</button>
           </div>
         </form>
         <div className="stack" style={{ marginTop: 18 }}>

@@ -3,6 +3,12 @@ import { CampaignRecapPrintScope } from '../../../../components/campaign-recap-p
 import { getPublicCampaignRecapData } from '../../../../lib/campaign-recap';
 
 export const dynamic = 'force-dynamic';
+export const metadata = {
+  robots: {
+    follow: false,
+    index: false,
+  },
+};
 
 type PublicCampaignRecapPageProps = {
   params: Promise<{ shareToken: string }>;

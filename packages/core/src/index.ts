@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const roleSchema = z.enum(['operator', 'planner', 'driver']);
 export const recordIdSchema = z.string().regex(/^[0-9a-fA-F-]{36}$/, 'Invalid id.');
-export const campaignRecapShareTokenSchema = z.string().regex(/^[0-9a-f]{64}$/i, 'Invalid campaign recap share token.');
+export const campaignRecapShareTokenSchema = z.string().regex(/^[0-9a-f]{48}$/i, 'Invalid campaign recap share token.');
 export const bookingStatusSchema = z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled']);
 export const runStatusSchema = z.enum(['assigned', 'en_route', 'live', 'completed', 'issue']);
 export const campaignExecutionIntentSchema = z.enum(['cancel', 'pause', 'resolve', 'save']);

@@ -1,4 +1,4 @@
-import type { Database } from '../../../../../packages/supabase/types/database';
+import { Constants, type Database } from '../../../../../packages/supabase/types/database';
 import { LiveSyncBadge } from '../../../components/live-sync-badge';
 import { getDriverWorkspaceData, type HistoryArchiveFilters, type HistoryArchiveProofFilter, type HistoryArchiveStatusFilter } from '../../../lib/dashboard-data';
 import { updateDriverRunStatus, uploadDriverProof } from './actions';
@@ -74,7 +74,7 @@ function normalizeHistoryRegion(value: string | undefined): HistoryArchiveFilter
     return 'all';
   }
 
-  return ['DFW', 'Houston', 'Austin', 'San Antonio', 'El Paso', 'RGV'].includes(value)
+  return Constants.public.Enums.region_code.includes(value as (typeof Constants.public.Enums.region_code)[number])
     ? (value as HistoryArchiveFilters['region'])
     : 'all';
 }

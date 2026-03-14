@@ -148,6 +148,20 @@ type Snapshot = {
   truck: Pick<TruckRow, 'display_name' | 'id' | 'vehicle_code'> | null;
 };
 
+function buildAnonymizedDriverMap(
+  driverMap: Map<string, Pick<ProfileRow, 'email' | 'full_name' | 'id'>>
+) {
+  return new Map(
+    Array.from(driverMap.entries()).map(([driverId, driver], index) => [
+      driverId,
+      {
+        ...driver,
+        full_name: `Driver #${index + 1}`,
+      },
+    ])
+  );
+}
+
 function getCloseoutLabel(booking: Pick<SnapshotBooking, 'client_ready_at' | 'closed_at' | 'status'>) {
   if (booking.closed_at) {
     return 'Closed';
@@ -535,6 +549,9 @@ export async function getCampaignRecapData(bookingId: string): Promise<CampaignR
 
   const latestRun = runs[runs.length - 1] ?? null;
   const latestProof = proofs[0] ?? null;
+  const latestRunHasApprovedProof = latestRun
+    ? proofs.some((proof) => proof.run_id === latestRun.id && proof.status === 'approved')
+    : false;
   const approvedProofs = proofs.filter((proof) => proof.status === 'approved');
   const proofSummary =
     proofs.length > 0
@@ -557,7 +574,7 @@ export async function getCampaignRecapData(bookingId: string): Promise<CampaignR
     booking.status === 'completed' &&
     !booking.client_ready_at &&
     !booking.closed_at &&
-    (!latestRun?.proof_required || latestProof?.status === 'approved');
+    (!latestRun?.proof_required || latestRunHasApprovedProof);
   const canMarkClosed =
     canManageCloseout &&
     !booking.closed_at &&
@@ -639,10 +656,11 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
   const publicProofs = proofs.filter((proof) => proof.status === 'approved');
   const latestRun = runs[runs.length - 1] ?? null;
   const latestProof = publicProofs[0] ?? null;
+  const anonymizedDriverMap = buildAnonymizedDriverMap(driverMap);
   const routeSummary = slot
     ? `${slot.region} • ${formatTimeWindow(slot.start_at, slot.end_at)} • ${formatCurrency(slot.rate_cents)}`
     : 'Route summary unavailable';
-  const timeline = buildTimeline(booking, runs, publicProofs, driverMap, { redactIssueDetails: true });
+  const timeline = buildTimeline(booking, runs, publicProofs, anonymizedDriverMap, { redactIssueDetails: true });
   const stageSummary = buildStageSummary(booking, latestRun, latestProof, publicProofs.length);
 
   await admin
@@ -655,11 +673,11 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
     campaignSummary: truck
       ? `${truck.display_name} (${truck.vehicle_code}) • ${formatStatus(booking.status)}`
       : formatStatus(booking.status),
-    closeoutNote: booking.closeout_note ?? slot?.campaign_notes ?? null,
+    closeoutNote: booking.closeout_note ?? null,
     lastUpdatedLabel: formatOptionalDateTime(booking.closed_at ?? booking.client_ready_at ?? share.expires_at) ?? 'Recently',
     operatorLabel: organizationMap.get(booking.operator_organization_id)?.name ?? 'Operator organization',
     plannerLabel: organizationMap.get(booking.planner_organization_id)?.name ?? 'Planner organization',
-    proofItems: mapProofItems(publicProofs, driverMap, { publicShareToken: shareToken, publicView: true }),
+    proofItems: mapProofItems(publicProofs, anonymizedDriverMap, { publicShareToken: shareToken, publicView: true }),
     proofSummary:
       publicProofs.length > 0
         ? `${formatPlural(publicProofs.length, 'approved proof')} ready for review`

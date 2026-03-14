@@ -158,7 +158,9 @@ export function CampaignRecapActions({ campaignName, publicShareUrl }: CampaignR
         ) : null}
       </div>
       <div className="fine" data-testid="campaign-recap-share-policy">
-        Secure links require GlowHaul sign-in. Use Print / Save PDF for client-safe distribution.
+        {publicShareUrl
+          ? 'Public recap links are client-safe. Use Copy public link or Share public link for external delivery, or Print / Save PDF for a static artifact.'
+          : 'Secure links require GlowHaul sign-in. Use Print / Save PDF for client-safe distribution.'}
       </div>
       {notice ? (
         <div className="fine" data-testid="campaign-recap-actions-notice">

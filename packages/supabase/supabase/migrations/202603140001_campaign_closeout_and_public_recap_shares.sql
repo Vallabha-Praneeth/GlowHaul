@@ -88,7 +88,10 @@ begin
     raise exception 'You do not have access to this campaign closeout.';
   end if;
 
-  normalized_note := nullif(trim(target_note), '');
+  normalized_note := case
+    when target_note is null then null
+    else trim(target_note)
+  end;
 
   select *
   into selected_run
@@ -123,7 +126,7 @@ begin
     set
       client_ready_at = coalesce(client_ready_at, now()),
       client_ready_by = coalesce(client_ready_by, auth.uid()),
-      closeout_note = coalesce(normalized_note, closeout_note)
+      closeout_note = case when normalized_note is null then closeout_note else normalized_note end
     where id = selected_booking.id;
 
     return selected_booking.id;
@@ -141,7 +144,7 @@ begin
   set
     closed_at = coalesce(closed_at, now()),
     closed_by = coalesce(closed_by, auth.uid()),
-    closeout_note = coalesce(normalized_note, closeout_note)
+    closeout_note = case when normalized_note is null then closeout_note else normalized_note end
   where id = selected_booking.id;
 
   return selected_booking.id;

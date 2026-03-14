@@ -11,8 +11,20 @@ type CampaignRecapPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function safeDecode(value: string | undefined) {
+  if (!value) {
+    return value;
+  }
+
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function readMessage(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+  return safeDecode(Array.isArray(value) ? value[0] : value);
 }
 
 export default async function CampaignRecapPage({ params, searchParams }: CampaignRecapPageProps) {
@@ -51,8 +63,8 @@ export default async function CampaignRecapPage({ params, searchParams }: Campai
           {recap.shareReadyCallout}
         </div>
 
-        {notice ? <div className="badge success" style={{ marginTop: 18 }}>{decodeURIComponent(notice)}</div> : null}
-        {error ? <div className="badge warning" style={{ marginTop: 18 }}>{decodeURIComponent(error)}</div> : null}
+        {notice ? <div className="badge success" style={{ marginTop: 18 }}>{notice}</div> : null}
+        {error ? <div className="badge warning" style={{ marginTop: 18 }}>{error}</div> : null}
 
         <div className="card-grid" data-testid="campaign-recap-overview" style={{ marginTop: 24 }}>
           <div className="card">

@@ -554,8 +554,6 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
           <span className="fine">Closeout archive</span>
         </div>
         <form className="stack" method="get" style={{ marginTop: 18 }}>
-          <input name="notice" type="hidden" value={notice ?? ''} />
-          <input name="error" type="hidden" value={error ?? ''} />
           <div className="card-grid" style={{ gridTemplateColumns: 'minmax(0, 2fr) repeat(3, minmax(0, 1fr))' }}>
             <label className="form-field">
               <span className="fine">Archive search</span>

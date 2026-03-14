@@ -70,17 +70,7 @@ begin
 
   normalized_expiry_hours := greatest(24, least(coalesce(target_expiry_hours, 168), 24 * 30));
   share_expiry := now() + make_interval(hours => normalized_expiry_hours);
-  generated_token := md5(
-    random()::text
-    || clock_timestamp()::text
-    || coalesce(auth.uid()::text, '')
-    || target_booking_id::text
-  ) || md5(
-    clock_timestamp()::text
-    || random()::text
-    || coalesce(selected_booking.operator_organization_id::text, '')
-    || coalesce(selected_booking.planner_organization_id::text, '')
-  );
+  generated_token := encode(extensions.gen_random_bytes(24), 'hex');
 
   update public.campaign_recap_shares
   set revoked_at = now()

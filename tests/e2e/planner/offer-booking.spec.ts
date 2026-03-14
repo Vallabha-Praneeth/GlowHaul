@@ -345,6 +345,8 @@ test('planner can close out a completed campaign and publish a public recap', as
     await page.getByLabel('Archive search').fill(campaignName);
     await page.getByLabel('Closeout state').selectOption('closed');
     await page.getByRole('button', { name: 'Apply archive filters' }).last().click();
+    await expect.poll(() => new URL(page.url()).searchParams.get('historyStatus')).toBe('closed');
+    await expect.poll(() => new URL(page.url()).searchParams.get('historyQuery')).toBe(campaignName);
     await expect(page.getByTestId('planner-recent-history')).toContainText(campaignName);
     await expect(page.getByTestId('planner-recent-history')).toContainText('Closed');
   } finally {

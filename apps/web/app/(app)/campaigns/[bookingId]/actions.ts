@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { campaignCloseoutSchema, campaignPublicShareSchema } from '@glowhaul/core';
+import { campaignCloseoutSchema, campaignPublicShareSchema, recordIdSchema } from '@glowhaul/core';
 import type { Database } from '../../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../../lib/auth';
 import { rethrowRedirectError } from '../../../../lib/redirect-errors';
@@ -32,7 +32,18 @@ async function requireRecapManager() {
   return createServerSupabaseClient();
 }
 
+function getFallbackRecapPath(formData: FormData) {
+  const bookingId = formData.get('bookingId');
+
+  if (typeof bookingId === 'string' && recordIdSchema.safeParse(bookingId).success) {
+    return getRecapPath(bookingId);
+  }
+
+  return '/planner/search';
+}
+
 export async function updateCampaignCloseoutAction(formData: FormData) {
+  const fallbackPath = getFallbackRecapPath(formData);
   const parsed = campaignCloseoutSchema.safeParse({
     bookingId: formData.get('bookingId'),
     intent: formData.get('intent'),
@@ -40,7 +51,7 @@ export async function updateCampaignCloseoutAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect('/planner/search?error=' + encodeMessage('Enter a valid closeout update before saving.'));
+    redirect(`${fallbackPath}?error=${encodeMessage('Enter a valid closeout update before saving.')}`);
   }
 
   try {
@@ -48,7 +59,7 @@ export async function updateCampaignCloseoutAction(formData: FormData) {
     const rpcArgs: Database['public']['Functions']['update_campaign_closeout']['Args'] = {
       target_booking_id: parsed.data.bookingId,
       target_intent: parsed.data.intent,
-      target_note: parsed.data.note?.trim() ? parsed.data.note.trim() : undefined,
+      target_note: parsed.data.note === undefined ? undefined : parsed.data.note.trim(),
     };
     const { error } = await supabase.rpc('update_campaign_closeout', rpcArgs as never);
 
@@ -80,13 +91,14 @@ export async function updateCampaignCloseoutAction(formData: FormData) {
 }
 
 export async function manageCampaignPublicShareAction(formData: FormData) {
+  const fallbackPath = getFallbackRecapPath(formData);
   const parsed = campaignPublicShareSchema.safeParse({
     bookingId: formData.get('bookingId'),
     intent: formData.get('intent'),
   });
 
   if (!parsed.success) {
-    redirect('/planner/search?error=' + encodeMessage('Choose a valid recap share action before saving.'));
+    redirect(`${fallbackPath}?error=${encodeMessage('Choose a valid recap share action before saving.')}`);
   }
 
   try {

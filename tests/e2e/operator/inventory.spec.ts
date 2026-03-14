@@ -265,6 +265,8 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     await operatorHistory.getByLabel('Archive search').fill('Dallas Product Launch');
     await operatorHistory.getByLabel('Proof').selectOption('rejected');
     await operatorHistory.getByRole('button', { name: 'Apply archive filters' }).click();
+    await expect.poll(() => new URL(page.url()).searchParams.get('historyProof')).toBe('rejected');
+    await expect.poll(() => new URL(page.url()).searchParams.get('historyQuery')).toBe('Dallas Product Launch');
     await expect(operatorHistory).toContainText('Dallas Product Launch');
     await expect(operatorHistory).toContainText('Proof: Rejected');
 
