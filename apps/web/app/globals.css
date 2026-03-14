@@ -232,10 +232,10 @@ input[type='file'].input {
     -webkit-print-color-adjust: exact;
   }
 
-  .sidebar,
-  .campaign-recap-actions,
-  .button-primary,
-  .button-secondary {
+  body:has(.campaign-recap-sheet) .sidebar,
+  .campaign-recap-sheet .campaign-recap-actions,
+  .campaign-recap-sheet .button-primary,
+  .campaign-recap-sheet .button-secondary {
     display: none !important;
   }
 
@@ -249,16 +249,16 @@ input[type='file'].input {
     padding: 0;
   }
 
-  .surface,
-  .card,
-  .pill {
+  .campaign-recap-sheet .surface,
+  .campaign-recap-sheet .card,
+  .campaign-recap-sheet .pill {
     background: #fff !important;
     border-color: #d1d5db !important;
     box-shadow: none !important;
     color: #111827 !important;
   }
 
-  .fine {
+  .campaign-recap-sheet .fine {
     color: #4b5563 !important;
   }
 
