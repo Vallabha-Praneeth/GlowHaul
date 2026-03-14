@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { CampaignRecapActions } from '../../../../components/campaign-recap-actions';
+import { CampaignRecapPrintScope } from '../../../../components/campaign-recap-print-scope';
 import { getCampaignRecapData } from '../../../../lib/campaign-recap';
 
 export const dynamic = 'force-dynamic';
@@ -16,8 +18,9 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
   }
 
   return (
-    <div className="stack" data-testid="campaign-recap-page">
-      <section className="surface" style={{ padding: 28 }}>
+    <div className="stack campaign-recap-sheet" data-testid="campaign-recap-page">
+      <CampaignRecapPrintScope />
+      <section className="surface campaign-recap-hero" style={{ padding: 28 }}>
         <div className="section-header">
           <div>
             <div className="fine">Campaign recap artifact</div>
@@ -61,6 +64,10 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
           <a className="button-secondary" data-testid="campaign-recap-back-link" href={recap.backHref}>
             Back to workspace
           </a>
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <CampaignRecapActions campaignName={recap.campaignName} />
         </div>
       </section>
 
