@@ -277,6 +277,9 @@ test('planner offer can be submitted and later shows execution and proof state v
     await expect(page.getByTestId('campaign-recap-print-button')).toBeVisible();
     await expect(page.getByTestId('campaign-recap-copy-link-button')).toBeVisible();
     await expect(page.getByTestId('campaign-recap-native-share-button')).toBeVisible();
+    await expect(page.getByTestId('campaign-recap-share-policy')).toContainText(
+      'Use Print / Save PDF for client-safe distribution.',
+    );
   } finally {
     await operatorContext.close();
     await driverContext.close();

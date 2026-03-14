@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type CampaignRecapActionsProps = {
   campaignName: string;
@@ -8,11 +8,42 @@ type CampaignRecapActionsProps = {
 
 export function CampaignRecapActions({ campaignName }: CampaignRecapActionsProps) {
   const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!notice) {
+      return undefined;
+    }
+
+    if (noticeTimeoutRef.current) {
+      clearTimeout(noticeTimeoutRef.current);
+    }
+
+    noticeTimeoutRef.current = setTimeout(() => {
+      setNotice(null);
+      noticeTimeoutRef.current = null;
+    }, 4_000);
+
+    return () => {
+      if (noticeTimeoutRef.current) {
+        clearTimeout(noticeTimeoutRef.current);
+        noticeTimeoutRef.current = null;
+      }
+    };
+  }, [notice]);
+
+  function buildSecureSharePayload() {
+    return [
+      `GlowHaul secure recap for ${campaignName}`,
+      window.location.href,
+      'Recipient must sign in to GlowHaul to view this recap.',
+    ].join('\n');
+  }
 
   async function copyShareLink() {
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      setNotice('Share link copied.');
+      await navigator.clipboard.writeText(buildSecureSharePayload());
+      setNotice('Secure link copied. Recipient must sign in to GlowHaul.');
     } catch {
       setNotice('Copy failed on this browser.');
     }
@@ -26,11 +57,11 @@ export function CampaignRecapActions({ campaignName }: CampaignRecapActionsProps
 
     try {
       await navigator.share({
-        text: `Campaign recap for ${campaignName}`,
+        text: `${campaignName} recap. Recipient must sign in to GlowHaul to view this link.`,
         title: `${campaignName} recap`,
         url: window.location.href,
       });
-      setNotice('Share sheet opened.');
+      setNotice('Share sheet opened for a secure GlowHaul link.');
     } catch {
       setNotice(null);
     }
@@ -57,7 +88,7 @@ export function CampaignRecapActions({ campaignName }: CampaignRecapActionsProps
           onClick={() => void copyShareLink()}
           type="button"
         >
-          Copy share link
+          Copy secure link
         </button>
         <button
           className="button-secondary"
@@ -65,8 +96,11 @@ export function CampaignRecapActions({ campaignName }: CampaignRecapActionsProps
           onClick={() => void openNativeShare()}
           type="button"
         >
-          Share
+          Share secure link
         </button>
+      </div>
+      <div className="fine" data-testid="campaign-recap-share-policy">
+        Secure links require GlowHaul sign-in. Use Print / Save PDF for client-safe distribution.
       </div>
       {notice ? (
         <div className="fine" data-testid="campaign-recap-actions-notice">

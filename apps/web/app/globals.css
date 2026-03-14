@@ -267,7 +267,7 @@ input[type='file'].input {
   }
 
   .campaign-recap-hero {
-    page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   .campaign-recap-sheet a {
