@@ -92,7 +92,10 @@ export default async function CampaignRecapPage({ params, searchParams }: Campai
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <CampaignRecapActions campaignName={recap.campaignName} publicShareUrl={recap.publicShare?.url ?? null} />
+          <CampaignRecapActions
+            campaignName={recap.campaignName}
+            publicShareUrl={recap.canManageCloseout ? recap.publicShare?.url ?? null : null}
+          />
         </div>
       </section>
 

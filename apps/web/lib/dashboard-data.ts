@@ -330,8 +330,10 @@ function matchesHistoryFilters(
   item: {
     closeoutLabel: string;
     detail: string;
+    proofLabel: string | null;
     proofStatus: ProofAssetRow['status'] | null;
     region: RegionCode | null;
+    statusLabel: string;
     title: string;
   },
   filters: HistoryArchiveFilters
@@ -344,6 +346,8 @@ function matchesHistoryFilters(
       item.detail,
       item.region ?? '',
       item.closeoutLabel,
+      item.statusLabel,
+      item.proofLabel ?? '',
       item.proofStatus ? formatStatus(item.proofStatus) : 'Missing proof',
     ]
       .join(' ')
@@ -1043,7 +1047,7 @@ export async function getOperatorDashboardData(
       label: 'Client-ready',
       value: String(
         activeBookingContexts.filter(
-          (context) => Boolean(context.booking.client_ready_at) || Boolean(context.booking.closed_at)
+          (context) => Boolean(context.booking.client_ready_at) && !Boolean(context.booking.closed_at)
         ).length
       ),
     },
@@ -1443,8 +1447,8 @@ export async function getPlannerMarketplaceData(
     {
       label: 'Client-ready',
       value: String(
-        submittedOfferContexts.filter((context) =>
-          ['Client-ready', 'Closed'].includes(context.execution.campaignStageLabel)
+        submittedOfferContexts.filter(
+          (context) => context.execution.campaignStageLabel === 'Client-ready'
         ).length
       ),
     },

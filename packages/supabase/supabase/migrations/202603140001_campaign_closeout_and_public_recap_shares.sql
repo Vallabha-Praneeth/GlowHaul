@@ -118,6 +118,10 @@ begin
       raise exception 'Only completed campaigns can be marked client-ready.';
     end if;
 
+    if selected_booking.client_ready_at is not null then
+      raise exception 'Campaign is already client-ready.';
+    end if;
+
     if selected_run.id is not null and coalesce(selected_run.proof_required, true) and not approved_proof_exists then
       raise exception 'Approve at least one proof asset before marking this campaign client-ready.';
     end if;
@@ -138,6 +142,10 @@ begin
 
   if selected_booking.status = 'completed' and selected_booking.client_ready_at is null then
     raise exception 'Mark the campaign client-ready before closing it.';
+  end if;
+
+  if selected_booking.closed_at is not null then
+    raise exception 'Campaign is already closed.';
   end if;
 
   update public.bookings

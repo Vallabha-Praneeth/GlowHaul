@@ -320,7 +320,9 @@ function buildTimeline(
     if (run.issue_reported_at) {
       timeline.push({
         detail: options.redactIssueDetails
-          ? 'An execution issue was reported and resolved during delivery.'
+          ? run.issue_resolved_at
+            ? 'An execution issue was reported and resolved during delivery.'
+            : 'An execution issue was reported during delivery.'
           : run.issue_note ?? 'Execution issue reported.',
         id: `run-issue-${run.id}`,
         label: 'Issue reported',
@@ -681,7 +683,9 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
     proofSummary:
       publicProofs.length > 0
         ? `${formatPlural(publicProofs.length, 'approved proof')} ready for review`
-        : 'Approved proof will appear here after operator review.',
+        : latestRun?.proof_required
+          ? 'Approved proof will appear here after operator review.'
+          : 'No proof required for the latest run.',
     routeSummary,
     shareReadyCallout:
       publicProofs.length > 0

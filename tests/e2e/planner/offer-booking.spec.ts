@@ -63,7 +63,12 @@ async function refreshPlannerOffer(page: import('@playwright/test').Page, offerM
     page,
     path: roleHomePaths.planner,
     refreshMode: 'goto',
-    read: async () => page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: offerMessage }).count(),
+    read: async () =>
+      page
+        .getByTestId('planner-submitted-offers-list')
+        .locator('div.pill')
+        .filter({ hasText: offerMessage })
+        .count(),
     until: (count) => count === 1,
   });
 }
@@ -167,7 +172,12 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
     await operatorActiveCampaign.getByLabel('Run status').selectOption('en_route');
     await operatorActiveCampaign.getByRole('button', { name: 'Save dispatch plan' }).click();
     await refreshOperatorCampaign(operatorPage, campaignName);
-    await expect(operatorPage.locator('form.surface').filter({ hasText: campaignName }).first().locator('select[name="driverId"]')).toHaveValue('33333333-3333-3333-3333-333333333333');
+    const driverSelect = operatorPage
+      .locator('form.surface')
+      .filter({ hasText: campaignName })
+      .first()
+      .locator('select[name="driverId"]');
+    await expect(driverSelect).toHaveValue('33333333-3333-3333-3333-333333333333');
 
     await page.goto(roleHomePaths.planner);
     const confirmedOffer = page.getByTestId('planner-submitted-offers-list').locator('div.pill').filter({ hasText: campaignName }).first();
@@ -189,8 +199,8 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
     });
 
     await driverPage.goto(roleHomePaths.driver);
-    const getDriverRunCard = () => driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
-    await expect(getDriverRunCard()).toContainText('En Route', { timeout: 15_000 });
+    const driverRunCard = driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
+    await expect(driverRunCard).toContainText('En Route', { timeout: 15_000 });
 
     await operatorPage.goto(roleHomePaths.operator);
     const liveCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
@@ -205,7 +215,7 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
       refreshMode: 'goto',
       timeoutMs: 60_000,
       read: async () => {
-        const card = getDriverRunCard();
+        const card = driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
         if (await card.count() === 0) {
           return '';
         }
