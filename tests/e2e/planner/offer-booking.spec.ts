@@ -273,6 +273,10 @@ test('planner offer can be submitted and later shows execution and proof state v
     await expect(page.getByTestId('campaign-recap-summary')).toContainText(issueNote);
     await expect(page.getByTestId('campaign-recap-proof-list')).toContainText(proofFileName);
     await expect(page.getByTestId('campaign-recap-timeline')).toContainText('Proof Uploaded');
+    await expect(page.getByTestId('campaign-recap-actions')).toBeVisible();
+    await expect(page.getByTestId('campaign-recap-print-button')).toBeVisible();
+    await expect(page.getByTestId('campaign-recap-copy-link-button')).toBeVisible();
+    await expect(page.getByTestId('campaign-recap-native-share-button')).toBeVisible();
   } finally {
     await operatorContext.close();
     await driverContext.close();

@@ -209,3 +209,69 @@ input[type='file'].input {
     grid-template-columns: 1fr;
   }
 }
+
+@media print {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 224 48% 6%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 48% 6%;
+    --muted: 220 20% 96%;
+    --muted-foreground: 220 10% 35%;
+    --border: 220 14% 82%;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .sidebar,
+  .campaign-recap-actions,
+  .button-primary,
+  .button-secondary {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block;
+  }
+
+  .content,
+  .mobile-stack {
+    max-width: none;
+    padding: 0;
+  }
+
+  .surface,
+  .card,
+  .pill {
+    background: #fff !important;
+    border-color: #d1d5db !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+  }
+
+  .fine {
+    color: #4b5563 !important;
+  }
+
+  .campaign-recap-sheet {
+    gap: 12px;
+  }
+
+  .campaign-recap-hero {
+    page-break-inside: avoid;
+  }
+
+  .campaign-recap-sheet a {
+    color: #111827 !important;
+    text-decoration: underline;
+  }
+}
