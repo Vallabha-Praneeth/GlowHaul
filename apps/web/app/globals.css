@@ -232,6 +232,7 @@ input[type='file'].input {
     -webkit-print-color-adjust: exact;
   }
 
+  body.print-recap .sidebar,
   body:has(.campaign-recap-sheet) .sidebar,
   .campaign-recap-sheet .campaign-recap-actions,
   .campaign-recap-sheet .button-primary,
@@ -239,12 +240,15 @@ input[type='file'].input {
     display: none !important;
   }
 
-  .app-shell {
+  body.print-recap .app-shell,
+  body:has(.campaign-recap-sheet) .app-shell {
     display: block;
   }
 
-  .content,
-  .mobile-stack {
+  body.print-recap .content,
+  body.print-recap .mobile-stack,
+  body:has(.campaign-recap-sheet) .content,
+  body:has(.campaign-recap-sheet) .mobile-stack {
     max-width: none;
     padding: 0;
   }

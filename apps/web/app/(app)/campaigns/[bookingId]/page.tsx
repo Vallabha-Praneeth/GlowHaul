@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { CampaignRecapActions } from '../../../../components/campaign-recap-actions';
+import { CampaignRecapPrintScope } from '../../../../components/campaign-recap-print-scope';
 import { getCampaignRecapData } from '../../../../lib/campaign-recap';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,7 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
 
   return (
     <div className="stack campaign-recap-sheet" data-testid="campaign-recap-page">
+      <CampaignRecapPrintScope />
       <section className="surface campaign-recap-hero" style={{ padding: 28 }}>
         <div className="section-header">
           <div>
