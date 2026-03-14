@@ -1,6 +1,6 @@
 import { Constants } from '../../../../../packages/supabase/types/database';
 import { LiveSyncBadge } from '../../../components/live-sync-badge';
-import { getOperatorDashboardData } from '../../../lib/dashboard-data';
+import { getOperatorDashboardData, type HistoryArchiveFilters, type HistoryArchiveProofFilter, type HistoryArchiveStatusFilter } from '../../../lib/dashboard-data';
 import {
   acceptPlannerOffer,
   createSlotInventory,
@@ -31,9 +31,41 @@ function formatStatusLabel(value: string) {
     .join(' ');
 }
 
+function normalizeHistoryStatus(value: string | undefined): HistoryArchiveStatusFilter {
+  if (value === 'all' || value === 'cancelled' || value === 'client_ready' || value === 'closed') {
+    return value;
+  }
+
+  return 'all';
+}
+
+function normalizeHistoryProof(value: string | undefined): HistoryArchiveProofFilter {
+  if (value === 'all' || value === 'approved' || value === 'missing' || value === 'rejected') {
+    return value;
+  }
+
+  return 'all';
+}
+
+function normalizeHistoryRegion(value: string | undefined): HistoryArchiveFilters['region'] {
+  if (!value || value === 'all') {
+    return 'all';
+  }
+
+  return Constants.public.Enums.region_code.includes(value as (typeof Constants.public.Enums.region_code)[number])
+    ? (value as HistoryArchiveFilters['region'])
+    : 'all';
+}
+
 export default async function OperatorPage({ searchParams }: OperatorPageProps) {
-  const data = await getOperatorDashboardData();
   const params = (await searchParams) ?? {};
+  const historyFilters: HistoryArchiveFilters = {
+    proof: normalizeHistoryProof(readMessage(params.historyProof)),
+    query: (readMessage(params.historyQuery) ?? '').trim(),
+    region: normalizeHistoryRegion(readMessage(params.historyRegion)),
+    status: normalizeHistoryStatus(readMessage(params.historyStatus)),
+  };
+  const data = await getOperatorDashboardData(historyFilters);
   const notice = readMessage(params.notice);
   const error = readMessage(params.error);
   const defaultTruckId = data.truckOptions[0]?.id ?? '';
@@ -521,6 +553,59 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
           </div>
           <span className="fine">Closeout archive</span>
         </div>
+        <form className="stack" method="get" style={{ marginTop: 18 }}>
+          <input name="notice" type="hidden" value={notice ?? ''} />
+          <input name="error" type="hidden" value={error ?? ''} />
+          <div className="card-grid" style={{ gridTemplateColumns: 'minmax(0, 2fr) repeat(3, minmax(0, 1fr))' }}>
+            <label className="form-field">
+              <span className="fine">Archive search</span>
+              <input
+                className="input"
+                defaultValue={data.historyFilters.query}
+                name="historyQuery"
+                placeholder="Campaign, region, closeout state"
+                type="text"
+              />
+            </label>
+            <label className="form-field">
+              <span className="fine">Closeout state</span>
+              <select className="input" defaultValue={data.historyFilters.status} name="historyStatus">
+                <option value="all">All closeout states</option>
+                <option value="client_ready">Client-ready</option>
+                <option value="closed">Closed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span className="fine">Proof</span>
+              <select className="input" defaultValue={data.historyFilters.proof} name="historyProof">
+                <option value="all">All proof states</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="missing">Missing</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span className="fine">Region</span>
+              <select className="input" defaultValue={data.historyFilters.region} name="historyRegion">
+                <option value="all">All regions</option>
+                {Constants.public.Enums.region_code.map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {data.historyFilterPills.map((item) => (
+              <span className="pill" key={item.label}>{item.label}: {item.value}</span>
+            ))}
+          </div>
+          <div>
+            <button className="button-secondary" type="submit">Apply archive filters</button>
+          </div>
+        </form>
         <div className="stack" style={{ marginTop: 18 }}>
           {data.recentHistory.length > 0 ? data.recentHistory.map((item) => (
             <div className="pill" data-testid={`operator-history-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
@@ -529,6 +614,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
                 <span className={`badge ${item.tone}`}>{item.statusLabel}</span>
               </div>
               <div className="fine">{item.detail}</div>
+              <div className="fine">{item.closeoutLabel} • {item.dateLabel}{item.region ? ` • ${item.region}` : ''}</div>
               {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
               <a className="fine" data-testid={`operator-history-recap-link-${item.id}`} href={item.recapHref}>
                 Open recap
@@ -540,7 +626,7 @@ export default async function OperatorPage({ searchParams }: OperatorPageProps) 
         </div>
       </section>
 
-      <section className="card">
+      <section className="card" data-testid="operator-inventory-editor">
         <div className="section-header">
           <div>
             <h2 style={{ margin: 0 }}>Inventory editor</h2>

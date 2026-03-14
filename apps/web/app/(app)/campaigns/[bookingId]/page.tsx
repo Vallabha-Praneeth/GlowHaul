@@ -1,16 +1,26 @@
 import { notFound } from 'next/navigation';
 import { CampaignRecapActions } from '../../../../components/campaign-recap-actions';
+import { CampaignRecapPrintScope } from '../../../../components/campaign-recap-print-scope';
 import { getCampaignRecapData } from '../../../../lib/campaign-recap';
+import { manageCampaignPublicShareAction, updateCampaignCloseoutAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 type CampaignRecapPageProps = {
   params: Promise<{ bookingId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function CampaignRecapPage({ params }: CampaignRecapPageProps) {
+function readMessage(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function CampaignRecapPage({ params, searchParams }: CampaignRecapPageProps) {
   const { bookingId } = await params;
   const recap = await getCampaignRecapData(bookingId);
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const notice = readMessage(resolvedSearchParams.notice);
+  const error = readMessage(resolvedSearchParams.error);
 
   if (!recap) {
     notFound();
@@ -18,6 +28,8 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
 
   return (
     <div className="stack campaign-recap-sheet" data-testid="campaign-recap-page">
+      <CampaignRecapPrintScope />
+
       <section className="surface campaign-recap-hero" style={{ padding: 28 }}>
         <div className="section-header">
           <div>
@@ -39,6 +51,9 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
           {recap.shareReadyCallout}
         </div>
 
+        {notice ? <div className="badge success" style={{ marginTop: 18 }}>{decodeURIComponent(notice)}</div> : null}
+        {error ? <div className="badge warning" style={{ marginTop: 18 }}>{decodeURIComponent(error)}</div> : null}
+
         <div className="card-grid" data-testid="campaign-recap-overview" style={{ marginTop: 24 }}>
           <div className="card">
             <div className="fine">Route</div>
@@ -49,8 +64,8 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
             <div style={{ fontSize: 22, fontWeight: 700, marginTop: 10 }}>{recap.proofSummary}</div>
           </div>
           <div className="card">
-            <div className="fine">Operator</div>
-            <div style={{ fontSize: 22, fontWeight: 700, marginTop: 10 }}>{recap.operatorLabel}</div>
+            <div className="fine">Closeout</div>
+            <div style={{ fontSize: 22, fontWeight: 700, marginTop: 10 }}>{recap.closeoutLabel}</div>
           </div>
           <div className="card">
             <div className="fine">Planner</div>
@@ -65,7 +80,7 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <CampaignRecapActions campaignName={recap.campaignName} />
+          <CampaignRecapActions campaignName={recap.campaignName} publicShareUrl={recap.publicShare?.url ?? null} />
         </div>
       </section>
 
@@ -78,7 +93,7 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
                 Share-ready route context for operators, planners, and assigned drivers.
               </div>
             </div>
-            <span className="fine">Role: {recap.viewerRole}</span>
+            <span className={`badge ${recap.closeoutTone}`}>{recap.closeoutLabel}</span>
           </div>
 
           <div className="stack" style={{ marginTop: 18 }}>
@@ -92,6 +107,12 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
                 <span>{recap.internalNote}</span>
               </div>
             ) : null}
+            {recap.closeoutNote ? (
+              <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
+                <span className="fine">Client-facing closeout note</span>
+                <span>{recap.closeoutNote}</span>
+              </div>
+            ) : null}
             {recap.issueSummary ? (
               <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
                 <span className="fine">Issue history</span>
@@ -101,6 +122,93 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
           </div>
         </section>
 
+        <section className="card" data-testid="campaign-recap-share-manager">
+          <div className="section-header">
+            <div>
+              <h2 style={{ margin: 0 }}>Delivery controls</h2>
+              <div className="fine" style={{ marginTop: 6 }}>
+                Close the campaign cleanly and manage public recap distribution.
+              </div>
+            </div>
+            <span className="fine">Operator / planner</span>
+          </div>
+
+          {recap.canManageCloseout ? (
+            <div className="stack" style={{ marginTop: 18 }}>
+              <form action={updateCampaignCloseoutAction} className="stack">
+                <input name="bookingId" type="hidden" value={bookingId} />
+                <label className="form-field">
+                  <span className="fine">Closeout note</span>
+                  <textarea
+                    className="input"
+                    defaultValue={recap.closeoutNote ?? ''}
+                    name="note"
+                    placeholder="Optional note to carry into client-ready and public recap views"
+                    rows={4}
+                  />
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                  {recap.canMarkClientReady ? (
+                    <button className="button-secondary" data-testid="campaign-recap-mark-client-ready" name="intent" type="submit" value="mark_client_ready">
+                      Mark client-ready
+                    </button>
+                  ) : null}
+                  {recap.canMarkClosed ? (
+                    <button className="button-secondary" data-testid="campaign-recap-mark-closed" name="intent" type="submit" value="mark_closed">
+                      Mark closed
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
+                <span className="fine">Public recap link</span>
+                {recap.publicShare ? (
+                  <>
+                    <a className="fine" data-testid="campaign-recap-public-link" href={recap.publicShare.url} rel="noreferrer" target="_blank">
+                      {recap.publicShare.url}
+                    </a>
+                    <span className="fine">Expires {recap.publicShare.expiresAtLabel}</span>
+                  </>
+                ) : (
+                  <span className="fine">No public recap link is active yet.</span>
+                )}
+              </div>
+
+              {recap.canCreatePublicShare ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                  <form action={manageCampaignPublicShareAction}>
+                    <input name="bookingId" type="hidden" value={bookingId} />
+                    <input name="intent" type="hidden" value="create" />
+                    <button className="button-secondary" data-testid="campaign-recap-create-public-share" type="submit">
+                      {recap.publicShare ? 'Refresh public recap link' : 'Create public recap link'}
+                    </button>
+                  </form>
+                  {recap.publicShare ? (
+                    <form action={manageCampaignPublicShareAction}>
+                      <input name="bookingId" type="hidden" value={bookingId} />
+                      <input name="intent" type="hidden" value="revoke" />
+                      <button className="button-secondary" data-testid="campaign-recap-revoke-public-share" type="submit">
+                        Revoke public link
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="fine">
+                  Public recap links unlock after the campaign is marked client-ready.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="fine" style={{ marginTop: 18 }}>
+              Drivers can view this recap, but only operators and planners can manage closeout or public sharing.
+            </div>
+          )}
+        </section>
+      </div>
+
+      <div className="card-grid">
         <section className="card" data-testid="campaign-recap-proof-list">
           <div className="section-header">
             <div>
@@ -131,6 +239,32 @@ export default async function CampaignRecapPage({ params }: CampaignRecapPagePro
             )) : (
               <div className="fine">No proof assets are attached to this campaign yet.</div>
             )}
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="section-header">
+            <div>
+              <h2 style={{ margin: 0 }}>Participants</h2>
+              <div className="fine" style={{ marginTop: 6 }}>
+                Primary operating and planning orgs linked to this campaign.
+              </div>
+            </div>
+            <span className="fine">Workspace roles</span>
+          </div>
+          <div className="stack" style={{ marginTop: 18 }}>
+            <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
+              <span className="fine">Operator</span>
+              <span style={{ fontWeight: 700 }}>{recap.operatorLabel}</span>
+            </div>
+            <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
+              <span className="fine">Planner</span>
+              <span style={{ fontWeight: 700 }}>{recap.plannerLabel}</span>
+            </div>
+            <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
+              <span className="fine">Viewer role</span>
+              <span style={{ fontWeight: 700 }}>{recap.viewerRole}</span>
+            </div>
           </div>
         </section>
       </div>

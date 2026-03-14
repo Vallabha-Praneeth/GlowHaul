@@ -63,6 +63,7 @@ export async function waitForRouteValue<T>({
 }: WaitForRouteValueOptions<T>): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   let lastValue: T | undefined;
+  let hasReadCurrentPage = false;
 
   while (Date.now() < deadline) {
     const currentUrl = page.url();
@@ -71,11 +72,15 @@ export async function waitForRouteValue<T>({
         ? new URL(currentUrl).pathname
         : null;
 
-    if (currentPath !== path || refreshMode === 'goto') {
+    const shouldNavigate =
+      currentPath !== path || (refreshMode === 'goto' && hasReadCurrentPage);
+
+    if (shouldNavigate) {
       await page.goto(path);
     }
 
     lastValue = await read();
+    hasReadCurrentPage = true;
 
     if (until(lastValue)) {
       return lastValue;

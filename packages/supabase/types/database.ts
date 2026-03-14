@@ -37,6 +37,11 @@ export type Database = {
       bookings: {
         Row: {
           campaign_name: string
+          client_ready_at: string | null
+          client_ready_by: string | null
+          closed_at: string | null
+          closed_by: string | null
+          closeout_note: string | null
           created_at: string
           id: string
           internal_note: string | null
@@ -49,6 +54,11 @@ export type Database = {
         }
         Insert: {
           campaign_name: string
+          client_ready_at?: string | null
+          client_ready_by?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closeout_note?: string | null
           created_at?: string
           id?: string
           internal_note?: string | null
@@ -61,6 +71,11 @@ export type Database = {
         }
         Update: {
           campaign_name?: string
+          client_ready_at?: string | null
+          client_ready_by?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closeout_note?: string | null
           created_at?: string
           id?: string
           internal_note?: string | null
@@ -72,6 +87,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_client_ready_by_fkey"
+            columns: ["client_ready_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_offer_id_fkey"
             columns: ["offer_id"]
@@ -98,6 +127,54 @@ export type Database = {
             columns: ["slot_id"]
             isOneToOne: false
             referencedRelation: "slots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_recap_shares: {
+        Row: {
+          booking_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          last_accessed_at: string | null
+          revoked_at: string | null
+          token: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          last_accessed_at?: string | null
+          revoked_at?: string | null
+          token: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          last_accessed_at?: string | null
+          revoked_at?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_recap_shares_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_recap_shares_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -472,6 +549,13 @@ export type Database = {
             }
             Returns: string
           }
+      create_or_refresh_campaign_recap_share: {
+        Args: { target_booking_id: string; target_expiry_hours?: number }
+        Returns: {
+          expires_at: string
+          token: string
+        }[]
+      }
       current_organization_id: { Args: never; Returns: string }
       current_user_can_access_booking: {
         Args: {
@@ -487,6 +571,13 @@ export type Database = {
       }
       current_user_can_access_run: {
         Args: { target_booking_id: string; target_driver_id: string }
+        Returns: boolean
+      }
+      current_user_can_manage_campaign_recap: {
+        Args: {
+          target_operator_organization_id: string
+          target_planner_organization_id: string
+        }
         Returns: boolean
       }
       current_user_can_mutate_run: {
@@ -525,6 +616,18 @@ export type Database = {
         }
         Returns: string
       }
+      revoke_campaign_recap_share: {
+        Args: { target_booking_id: string }
+        Returns: string
+      }
+      update_campaign_closeout: {
+        Args: {
+          target_booking_id: string
+          target_intent: string
+          target_note?: string
+        }
+        Returns: string
+      }
       update_campaign_execution: {
         Args: {
           target_booking_id: string
@@ -534,14 +637,22 @@ export type Database = {
         }
         Returns: string
       }
-      update_driver_run_status: {
-        Args: {
-          target_issue_note?: string
-          target_run_id: string
-          target_status: Database["public"]["Enums"]["run_status"]
-        }
-        Returns: string
-      }
+      update_driver_run_status:
+        | {
+            Args: {
+              target_run_id: string
+              target_status: Database["public"]["Enums"]["run_status"]
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              target_issue_note?: string
+              target_run_id: string
+              target_status: Database["public"]["Enums"]["run_status"]
+            }
+            Returns: string
+          }
     }
     Enums: {
       app_role: "operator" | "planner" | "driver"
@@ -1276,3 +1387,4 @@ export const Constants = {
     },
   },
 } as const
+

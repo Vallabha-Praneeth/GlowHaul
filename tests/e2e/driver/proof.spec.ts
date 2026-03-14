@@ -117,7 +117,11 @@ test('driver can upload proof into Supabase storage and receive operator review 
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText(reviewNote, { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText('Approved proof is ready for planner share.', { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first().getByTestId(/driver-proof-open-file-/)).toBeVisible();
-    await expect(page.getByTestId('driver-recent-history')).toContainText('Proof: Approved', { timeout: 30_000 });
+    const driverHistory = page.getByTestId('driver-recent-history');
+    await expect(driverHistory).toContainText('Proof: Approved', { timeout: 30_000 });
+    await driverHistory.getByLabel('Proof').selectOption('approved');
+    await driverHistory.getByRole('button', { name: 'Apply archive filters' }).click();
+    await expect(driverHistory).toContainText('Proof: Approved');
   } finally {
     await operatorContext.close();
   }
