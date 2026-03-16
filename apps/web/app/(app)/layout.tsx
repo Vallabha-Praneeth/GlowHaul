@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { NotificationCenterCard } from '../../components/notification-center-card';
 import { getCurrentAuth, getDefaultHomePath, type AppRole } from '../../lib/auth';
 import { getNotificationCenterData } from '../../lib/notifications';
+import { markNotificationsReadAction } from './notification-actions';
 import { signOutUser } from '../(auth)/login/actions';
 
 const roleLabels: Record<AppRole, string> = {
@@ -67,7 +68,7 @@ export default async function AppLayout({
             </div>
           ) : null}
 
-          {notificationCenter ? <NotificationCenterCard data={notificationCenter} /> : null}
+          {notificationCenter ? <NotificationCenterCard data={notificationCenter} markAllReadAction={markNotificationsReadAction} /> : null}
 
           <div className="card">
             <div className="stack" style={{ gap: 8 }}>

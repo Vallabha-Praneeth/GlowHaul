@@ -2,10 +2,11 @@ import Link from 'next/link';
 import type { NotificationCenterData } from '../lib/notifications';
 
 type NotificationCenterCardProps = {
+  markAllReadAction: () => Promise<void>;
   data: NotificationCenterData;
 };
 
-export function NotificationCenterCard({ data }: NotificationCenterCardProps) {
+export function NotificationCenterCard({ data, markAllReadAction }: NotificationCenterCardProps) {
   return (
     <div className="card" data-testid="notification-center">
       <div className="section-header">
@@ -15,9 +16,23 @@ export function NotificationCenterCard({ data }: NotificationCenterCardProps) {
             Workflow events routed to this role.
           </div>
         </div>
-        <span className={`badge ${data.unreadCount > 0 ? 'warning' : 'success'}`} data-testid="notification-unread-count">
-          {data.unreadCount} unread
-        </span>
+        <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
+          <span className={`badge ${data.unreadCount > 0 ? 'warning' : 'success'}`} data-testid="notification-unread-count">
+            {data.unreadCount} unread
+          </span>
+          {data.unreadCount > 0 ? (
+            <form action={markAllReadAction}>
+              <button
+                className="button-secondary"
+                data-testid="notification-mark-all-read"
+                style={{ minWidth: 'auto', padding: '8px 12px' }}
+                type="submit"
+              >
+                Mark all read
+              </button>
+            </form>
+          ) : null}
+        </div>
       </div>
 
       <div className="stack" style={{ marginTop: 16 }}>

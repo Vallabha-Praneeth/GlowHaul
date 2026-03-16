@@ -336,6 +336,26 @@ export async function getNotificationCenterData(profileId: string): Promise<Noti
   };
 }
 
+export async function markAllNotificationsRead(profileId: string) {
+  const supabase = await createServerSupabaseClient();
+  // Supabase's generated update type narrows to `never` here despite the table exposing `Update`.
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() } as never)
+    .eq('recipient_profile_id', profileId)
+    .is('read_at', null);
+
+  if (error) {
+    console.error('Failed to mark notifications as read.', notificationErrorContext('markAllNotificationsRead', {
+      profileId,
+      error: error.message,
+    }));
+    return false;
+  }
+
+  return true;
+}
+
 export async function notifyPlannerOfferAccepted(input: {
   actorProfileId: string;
   campaignName: string;
