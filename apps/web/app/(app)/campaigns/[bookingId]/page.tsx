@@ -41,7 +41,6 @@ export default async function CampaignRecapPage({ params, searchParams }: Campai
   return (
     <div className="stack campaign-recap-sheet" data-testid="campaign-recap-page">
       <CampaignRecapPrintScope />
-
       <section className="surface campaign-recap-hero" style={{ padding: 28 }}>
         <div className="section-header">
           <div>
