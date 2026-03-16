@@ -1,3 +1,4 @@
+import 'server-only';
 import type { AppRole } from './auth';
 import { formatOptionalDateTime, getFileName } from './formatters';
 import { createAdminSupabaseClient } from './supabase/admin';
@@ -13,6 +14,8 @@ type OfferRow = Database['public']['Tables']['offers']['Row'];
 type RunRow = Database['public']['Tables']['runs']['Row'];
 type ProofAssetRow = Database['public']['Tables']['proof_assets']['Row'];
 type NotificationMetadata = Record<string, boolean | number | string | null>;
+type DispatchIntent = 'assign' | 'remove' | 'update' | 'cancel' | 'pause' | 'resolve';
+type DispatchIntentInput = DispatchIntent | 'save';
 
 export type NotificationCenterItem = {
   body: string;
@@ -82,7 +85,7 @@ function getNotificationTone(kind: NotificationKind, metadata: NotificationMetad
   }
 
   if (kind === 'dispatch_updated') {
-    const intent = typeof metadata?.intent === 'string' ? metadata.intent : null;
+    const intent = typeof metadata?.intent === 'string' ? metadata.intent as DispatchIntent : null;
 
     if (intent === 'cancel' || intent === 'pause' || intent === 'remove') {
       return 'warning' as const;
@@ -101,6 +104,28 @@ function notificationErrorContext(context: string, details: NotificationMetadata
     context,
     ...details,
   };
+}
+
+function deriveDispatchIntent(input: {
+  intent?: DispatchIntentInput | null;
+  isAssignedDriver: boolean;
+  isRemovedDriver: boolean;
+  previousDriverId?: string | null;
+  targetDriverId?: string | null;
+}): DispatchIntent {
+  if (input.intent === 'cancel' || input.intent === 'pause' || input.intent === 'resolve') {
+    return input.intent;
+  }
+
+  if (input.isRemovedDriver) {
+    return 'remove';
+  }
+
+  if (input.isAssignedDriver && input.previousDriverId !== input.targetDriverId) {
+    return 'assign';
+  }
+
+  return 'update';
 }
 
 async function getOrganizationRoleRecipientIds(
@@ -479,7 +504,7 @@ export async function notifyDriversDispatchUpdated(input: {
   bookingId: string;
   previousDriverId?: string | null;
   targetDriverId?: string | null;
-  intent?: string | null;
+  intent?: DispatchIntentInput | null;
 }) {
   const booking = await getBookingNotificationContext(input.bookingId);
 
@@ -498,23 +523,23 @@ export async function notifyDriversDispatchUpdated(input: {
   const notifications = recipientIds.map((recipientId) => {
     const isRemovedDriver = input.previousDriverId === recipientId && input.targetDriverId !== recipientId;
     const isAssignedDriver = input.targetDriverId === recipientId;
-    const dispatchIntent =
-      input.intent
-      ?? (isRemovedDriver
-        ? 'remove'
-        : isAssignedDriver && input.previousDriverId !== input.targetDriverId
-          ? 'assign'
-          : 'update');
+    const dispatchIntent = deriveDispatchIntent({
+      intent: input.intent,
+      isAssignedDriver,
+      isRemovedDriver,
+      previousDriverId: input.previousDriverId,
+      targetDriverId: input.targetDriverId,
+    });
     let title = 'Dispatch updated';
     let body = `${booking.campaign_name} dispatch details changed. Open the driver workspace for the new plan.`;
 
-    if (input.intent === 'cancel') {
+    if (dispatchIntent === 'cancel') {
       title = 'Campaign cancelled';
       body = `${booking.campaign_name} was cancelled by the operator.`;
-    } else if (input.intent === 'pause') {
+    } else if (dispatchIntent === 'pause') {
       title = 'Run paused';
       body = `${booking.campaign_name} was paused by the operator while the issue is being handled.`;
-    } else if (input.intent === 'resolve') {
+    } else if (dispatchIntent === 'resolve') {
       title = 'Run resumed';
       body = `${booking.campaign_name} was resumed by the operator.`;
     } else if (isRemovedDriver) {
