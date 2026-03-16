@@ -330,6 +330,7 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                 <span className="fine">Archive search</span>
                 <input
                   className="input"
+                  data-testid="history-query"
                   defaultValue={data.historyFilters.query}
                   name="historyQuery"
                   placeholder="Campaign, region, proof outcome"
@@ -338,7 +339,7 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
               </label>
               <label className="form-field">
                 <span className="fine">Closeout state</span>
-                <select className="input" defaultValue={data.historyFilters.status} name="historyStatus">
+                <select className="input" data-testid="history-status" defaultValue={data.historyFilters.status} name="historyStatus">
                   <option value="all">All closeout states</option>
                   <option value="client_ready">Client-ready</option>
                   <option value="closed">Closed</option>
@@ -347,7 +348,7 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
               </label>
               <label className="form-field">
                 <span className="fine">Proof</span>
-                <select className="input" defaultValue={data.historyFilters.proof} name="historyProof">
+                <select className="input" data-testid="history-proof" defaultValue={data.historyFilters.proof} name="historyProof">
                   <option value="all">All proof states</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
@@ -356,9 +357,9 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
               </label>
               <label className="form-field">
                 <span className="fine">Region</span>
-                <select className="input" defaultValue={data.historyFilters.region} name="historyRegion">
+                <select className="input" data-testid="history-region" defaultValue={data.historyFilters.region} name="historyRegion">
                   <option value="all">All regions</option>
-                  {(['DFW', 'Houston', 'Austin', 'San Antonio', 'El Paso', 'RGV'] as const).map((region) => (
+                  {Constants.public.Enums.region_code.map((region) => (
                     <option key={region} value={region}>
                       {region}
                     </option>
@@ -368,11 +369,11 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {data.historyFilterPills.map((item) => (
-                <span className="pill" key={item.label}>{item.label}: {item.value}</span>
+                <span className="pill" data-testid={`history-pill-${item.label}`} key={item.label}>{item.label}: {item.value}</span>
               ))}
             </div>
             <div>
-              <button className="button-secondary" type="submit">Apply archive filters</button>
+              <button className="button-secondary" data-testid="history-apply" type="submit">Apply archive filters</button>
             </div>
           </form>
           <div className="stack" style={{ marginTop: 16 }}>

@@ -1648,13 +1648,12 @@ export async function getDriverWorkspaceData(
     return fallback;
   }
 
-  const [runsResult, bookingsResult, proofAssetsResult] = await Promise.all([
+  const [runsResult, proofAssetsResult] = await Promise.all([
     supabase
       .from('runs')
       .select('id, booking_id, issue_note, issue_reported_at, issue_resolved_at, scheduled_start_at, scheduled_end_at, status, proof_required')
       .eq('driver_id', profile.id)
       .order('scheduled_start_at'),
-    supabase.from('bookings').select('id, campaign_name, status, internal_note, client_ready_at, closed_at, slot_id'),
     supabase
       .from('proof_assets')
       .select('id, run_id, storage_path, captured_at, created_at, status, review_notes, reviewed_at')
@@ -1662,7 +1661,7 @@ export async function getDriverWorkspaceData(
       .order('created_at', { ascending: false }),
   ]);
 
-  if (runsResult.error || bookingsResult.error || proofAssetsResult.error) {
+  if (runsResult.error || proofAssetsResult.error) {
     return fallback;
   }
 
@@ -1678,13 +1677,26 @@ export async function getDriverWorkspaceData(
     | 'scheduled_start_at'
     | 'status'
   >[];
-  const bookings = (bookingsResult.data ?? []) as Pick<
-    BookingRow,
-    'campaign_name' | 'client_ready_at' | 'closed_at' | 'id' | 'internal_note' | 'slot_id' | 'status'
-  >[];
   const proofAssets = (proofAssetsResult.data ?? []) as Pick<
     ProofAssetRow,
     'captured_at' | 'created_at' | 'id' | 'review_notes' | 'reviewed_at' | 'run_id' | 'status' | 'storage_path'
+  >[];
+  const runBookingIds = Array.from(new Set(runs.map((run) => run.booking_id)));
+  const bookingsResult =
+    runBookingIds.length > 0
+      ? await supabase
+          .from('bookings')
+          .select('id, campaign_name, status, internal_note, client_ready_at, closed_at, slot_id')
+          .in('id', runBookingIds)
+      : { data: [], error: null };
+
+  if (bookingsResult.error) {
+    return fallback;
+  }
+
+  const bookings = (bookingsResult.data ?? []) as Pick<
+    BookingRow,
+    'campaign_name' | 'client_ready_at' | 'closed_at' | 'id' | 'internal_note' | 'slot_id' | 'status'
   >[];
 
   const slotIds = Array.from(new Set(bookings.map((booking) => booking.slot_id)));

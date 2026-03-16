@@ -671,10 +671,24 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
   const timeline = buildTimeline(booking, runs, publicProofs, anonymizedDriverMap, { redactIssueDetails: true });
   const stageSummary = buildStageSummary(booking, latestRun, latestProof, publicProofs.length);
 
-  await admin
-    .from('campaign_recap_shares')
-    .update({ last_accessed_at: new Date().toISOString() })
-    .eq('token', shareToken);
+  try {
+    const { error: touchShareError } = await admin
+      .from('campaign_recap_shares')
+      .update({ last_accessed_at: new Date().toISOString() })
+      .eq('token', shareToken);
+
+    if (touchShareError) {
+      console.error('Failed to update campaign recap share access time.', {
+        error: touchShareError,
+        shareToken,
+      });
+    }
+  } catch (error) {
+    console.error('Failed to update campaign recap share access time.', {
+      error,
+      shareToken,
+    });
+  }
 
   return {
     campaignName: booking.campaign_name,

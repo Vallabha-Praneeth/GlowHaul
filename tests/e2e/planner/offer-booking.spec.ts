@@ -215,26 +215,7 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
     await liveCampaignCard.getByLabel('Run status').selectOption('live');
     await liveCampaignCard.getByRole('button', { name: 'Save dispatch plan' }).click();
 
-    await waitForRouteValue({
-      description: `driver live state for ${campaignName}`,
-      intervalMs: 2_000,
-      page: driverPage,
-      path: roleHomePaths.driver,
-      refreshMode: 'goto',
-      timeoutMs: 60_000,
-      read: async () => {
-        const card = driverPage
-          .getByTestId('driver-run-list')
-          .locator('div.surface')
-          .filter({ hasText: campaignName })
-          .first();
-        if (await card.count() === 0) {
-          return '';
-        }
-        return (await card.textContent()) ?? '';
-      },
-      until: (text) => text.includes('Live'),
-    });
+    await refreshDriverRunCardUntil(driverPage, campaignName, 'Live', 'goto');
   } finally {
     await operatorContext.close();
     await driverContext.close();
@@ -283,7 +264,6 @@ test('planner can close out a completed campaign and publish a public recap', as
     await refreshOperatorCampaign(operatorPage, campaignName);
 
     await driverPage.goto(roleHomePaths.driver);
-    const getDriverRunCard = () => driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
     await refreshDriverRunCardUntil(driverPage, campaignName, 'Live', 'goto');
 
     await operatorPage.goto(roleHomePaths.operator);

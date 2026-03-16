@@ -157,6 +157,7 @@ export default async function CampaignRecapPage({ params, searchParams }: Campai
                     <span className="fine">Closeout note</span>
                     <textarea
                       className="input"
+                      data-testid="closeout-note"
                       defaultValue={recap.closeoutNote ?? ''}
                       name="note"
                       placeholder="Optional note to carry into client-ready and public recap views"
