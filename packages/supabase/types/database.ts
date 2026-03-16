@@ -179,6 +179,100 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          actor_profile_id: string | null
+          body: string
+          booking_id: string | null
+          created_at: string
+          href: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          metadata: Json
+          offer_id: string | null
+          proof_asset_id: string | null
+          read_at: string | null
+          recipient_profile_id: string
+          run_id: string | null
+          title: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          body: string
+          booking_id?: string | null
+          created_at?: string
+          href: string
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          metadata?: Json
+          offer_id?: string | null
+          proof_asset_id?: string | null
+          read_at?: string | null
+          recipient_profile_id: string
+          run_id?: string | null
+          title: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          body?: string
+          booking_id?: string | null
+          created_at?: string
+          href?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          metadata?: Json
+          offer_id?: string | null
+          proof_asset_id?: string | null
+          read_at?: string | null
+          recipient_profile_id?: string
+          run_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_proof_asset_id_fkey"
+            columns: ["proof_asset_id"]
+            isOneToOne: false
+            referencedRelation: "proof_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_profile_id_fkey"
+            columns: ["recipient_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offers: {
         Row: {
           amount_cents: number
@@ -662,6 +756,14 @@ export type Database = {
         | "in_progress"
         | "completed"
         | "cancelled"
+      notification_kind:
+        | "offer_accepted"
+        | "campaign_client_ready"
+        | "campaign_closed"
+        | "dispatch_updated"
+        | "run_issue_reported"
+        | "proof_uploaded"
+        | "proof_reviewed"
       offer_status:
         | "pending"
         | "accepted"
@@ -1357,6 +1459,15 @@ export const Constants = {
         "in_progress",
         "completed",
         "cancelled",
+      ],
+      notification_kind: [
+        "offer_accepted",
+        "campaign_client_ready",
+        "campaign_closed",
+        "dispatch_updated",
+        "run_issue_reported",
+        "proof_uploaded",
+        "proof_reviewed",
       ],
       offer_status: ["pending", "accepted", "rejected", "withdrawn", "expired"],
       organization_kind: ["operator", "agency"],

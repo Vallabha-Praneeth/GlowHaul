@@ -6,6 +6,11 @@ import { z } from 'zod';
 import { campaignExecutionSchema, recordIdSchema, type CampaignExecutionInput } from '@glowhaul/core';
 import { Constants, type Database } from '../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
+import {
+  notifyDriverProofReviewed,
+  notifyDriversDispatchUpdated,
+  notifyPlannerOfferAccepted,
+} from '../../../lib/notifications';
 import { rethrowRedirectError } from '../../../lib/redirect-errors';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 
@@ -301,7 +306,7 @@ export async function acceptPlannerOffer(formData: FormData) {
   }
 
   try {
-    await requireAuthenticatedProfile('operator');
+    const profile = await requireAuthenticatedProfile('operator');
     const supabase = await createServerSupabaseClient();
     const { error } = await (supabase as any).rpc('accept_offer', {
       target_campaign_name: parsed.data.campaignName,
@@ -312,6 +317,12 @@ export async function acceptPlannerOffer(formData: FormData) {
     if (error) {
       redirect('/operator?error=' + encodeMessage(error.message));
     }
+
+    await notifyPlannerOfferAccepted({
+      actorProfileId: profile.id,
+      campaignName: parsed.data.campaignName,
+      offerId: parsed.data.offerId,
+    });
   } catch (error) {
     rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to accept offer.'));
@@ -381,6 +392,20 @@ export async function updateCampaignExecution(formData: FormData) {
       throw new Error('Your operator account is missing an organization.');
     }
 
+    const { data: currentRunData, error: currentRunError } = await supabase
+      .from('runs')
+      .select('driver_id')
+      .eq('booking_id', parsed.data.bookingId)
+      .order('scheduled_start_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (currentRunError) {
+      throw new Error(currentRunError.message);
+    }
+
+    const currentRunResult = currentRunData as Pick<Database['public']['Tables']['runs']['Row'], 'driver_id'> | null;
+    const currentDriverId = currentRunResult?.driver_id ?? null;
     const startAt = normalizeDateTimeInput(parsed.data.startAt);
     const endAt = normalizeDateTimeInput(parsed.data.endAt);
 
@@ -425,6 +450,14 @@ export async function updateCampaignExecution(formData: FormData) {
     if (error) {
       throw new Error(error.message);
     }
+
+    await notifyDriversDispatchUpdated({
+      actorProfileId: profile.id,
+      bookingId: parsed.data.bookingId,
+      intent: typeof parsed.data.intent === 'string' ? parsed.data.intent : null,
+      previousDriverId: currentDriverId,
+      targetDriverId: normalized.bookingStatus === 'cancelled' ? null : normalized.driverId,
+    });
   } catch (error) {
     rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to update campaign execution.'));
@@ -448,7 +481,7 @@ export async function reviewDriverProof(formData: FormData) {
   }
 
   try {
-    await requireAuthenticatedProfile('operator');
+    const profile = await requireAuthenticatedProfile('operator');
     const supabase = await createServerSupabaseClient();
     const { error } = await (supabase as any).rpc('review_proof_asset', {
       target_proof_asset_id: parsed.data.proofAssetId,
@@ -459,6 +492,11 @@ export async function reviewDriverProof(formData: FormData) {
     if (error) {
       redirect('/operator?error=' + encodeMessage(error.message));
     }
+
+    await notifyDriverProofReviewed({
+      actorProfileId: profile.id,
+      proofAssetId: parsed.data.proofAssetId,
+    });
   } catch (error) {
     rethrowRedirectError(error);
     redirect('/operator?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to review proof.'));

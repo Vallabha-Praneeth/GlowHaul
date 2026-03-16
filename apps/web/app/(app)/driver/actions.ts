@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { recordIdSchema } from '@glowhaul/core';
 import type { Database } from '../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
+import { notifyOperatorProofUploaded, notifyOperatorRunIssueReported } from '../../../lib/notifications';
 import { rethrowRedirectError } from '../../../lib/redirect-errors';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 
@@ -34,6 +35,21 @@ function isRetryableStorageError(message: string) {
     || normalized.includes('error status 502')
     || normalized.includes('error status 503')
     || normalized.includes('error sending request');
+}
+
+async function emitNotificationSafely(
+  description: string,
+  details: Record<string, string>,
+  emit: () => Promise<void>,
+) {
+  try {
+    await emit();
+  } catch (error) {
+    console.error(`Failed to emit ${description}.`, {
+      ...details,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function uploadDriverProof(formData: FormData) {
@@ -119,6 +135,32 @@ export async function uploadDriverProof(formData: FormData) {
       }
 
       redirect('/driver?error=' + encodeMessage(insertError.message));
+    }
+
+    const { data: insertedProofResult } = await supabase
+      .from('proof_assets')
+      .select('id')
+      .eq('run_id', runId)
+      .eq('driver_id', profile.id)
+      .eq('storage_path', uploadedStoragePath)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const insertedProof = insertedProofResult as Pick<Database['public']['Tables']['proof_assets']['Row'], 'id'> | null;
+
+    if (insertedProof) {
+      await emitNotificationSafely(
+        'proof upload notification',
+        {
+          proofAssetId: insertedProof.id,
+          runId,
+        },
+        () => notifyOperatorProofUploaded({
+          actorProfileId: profile.id,
+          proofAssetId: insertedProof.id,
+          runId,
+        }),
+      );
     }
   } catch (error) {
     rethrowRedirectError(error);
@@ -215,6 +257,20 @@ export async function updateDriverRunStatus(formData: FormData) {
 
     if (error) {
       throw new Error(error.message);
+    }
+
+    if (parsed.data.nextStatus === 'issue') {
+      await emitNotificationSafely(
+        'run issue notification',
+        {
+          runId: parsed.data.runId,
+        },
+        () => notifyOperatorRunIssueReported({
+          actorProfileId: profile.id,
+          issueNote: issueNote ?? null,
+          runId: parsed.data.runId,
+        }),
+      );
     }
   } catch (error) {
     rethrowRedirectError(error);

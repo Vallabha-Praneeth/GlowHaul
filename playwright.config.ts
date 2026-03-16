@@ -31,7 +31,9 @@ export default defineConfig({
           : 'PLAYWRIGHT_TEST=1 pnpm --filter @glowhaul/web build && PLAYWRIGHT_TEST=1 pnpm --filter @glowhaul/web start',
         url: baseURL,
         timeout: 240_000,
-        reuseExistingServer: !process.env.CI,
+        // Default runs should always start against the current build. Reuse is opt-in
+        // through the explicit PLAYWRIGHT_SKIP_WEBSERVER reuse scripts.
+        reuseExistingServer: false,
       },
   projects: hostedSmoke
     ? [

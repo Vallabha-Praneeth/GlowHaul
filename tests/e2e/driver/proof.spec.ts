@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForNotification, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'driver', storageState: 'tests/e2e/.auth/driver.json' });
@@ -36,6 +36,14 @@ async function refreshOperatorOffer(page: import('@playwright/test').Page, offer
   });
 }
 
+async function refreshOperatorNotification(
+  page: import('@playwright/test').Page,
+  expectedText: string,
+  timeout = 60_000,
+) {
+  await waitForNotification(page, roleHomePaths.operator, expectedText, timeout);
+}
+
 async function refreshDriverRunCardUntil(
   page: import('@playwright/test').Page,
   campaignName: string,
@@ -63,9 +71,18 @@ async function refreshDriverRunCardUntil(
   });
 }
 
+async function refreshDriverNotification(
+  page: import('@playwright/test').Page,
+  expectedText: string,
+  timeout = 60_000,
+) {
+  await waitForNotification(page, roleHomePaths.driver, expectedText, timeout);
+}
+
 test('driver can upload proof into Supabase storage and receive operator review live', async ({ browser, page, gotoRoleHome }) => {
   test.slow();
   const fileName = `proof-${Date.now()}.jpg`;
+  const proofSignal = fileName;
   const reviewNote = `Approved for client share ${Date.now()}`;
   const operatorContext = await browser.newContext({ storageState: authFiles.operator });
   const operatorPage = await operatorContext.newPage();
@@ -114,6 +131,8 @@ test('driver can upload proof into Supabase storage and receive operator review 
 
       return (await driverProofCard.textContent()) ?? '';
     }, { timeout: 30_000 }).toContain('Approved');
+    await refreshDriverNotification(page, proofSignal, 30_000);
+    await expect(page.getByTestId('notification-center')).toContainText(proofSignal);
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText(reviewNote, { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText('Approved proof is ready for planner share.', { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first().getByTestId(/driver-proof-open-file-/)).toBeVisible();
@@ -197,6 +216,8 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     await gotoRoleHome();
     const getRunCard = () => page.locator('div.surface').filter({ hasText: campaignName }).first();
     await refreshDriverRunCardUntil(page, campaignName, 'En Route', 'goto');
+    await refreshDriverNotification(page, campaignName);
+    await expect(page.getByTestId('notification-center')).toContainText(campaignName);
     await expect(getRunCard().getByText('En Route', { exact: true }).first()).toBeVisible();
     await expect(getRunCard().getByRole('link', { name: 'Open recap' })).toBeVisible();
 
@@ -215,6 +236,8 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     await operatorPage.goto(roleHomePaths.operator);
     const issueCampaignCard = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await expect(issueCampaignCard).toContainText(issueNote);
+    await refreshOperatorNotification(operatorPage, issueNote);
+    await expect(operatorPage.getByTestId('notification-center')).toContainText(campaignName);
     await submitActionButtonAndAssertRedirect(
       operatorPage,
       issueCampaignCard.getByRole('button', { name: 'Resolve issue' }),

@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForNotification, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'operator', storageState: 'tests/e2e/.auth/operator.json' });
@@ -61,6 +61,10 @@ async function refreshOperatorCampaign(page: import('@playwright/test').Page, ca
     read: async () => page.locator('form.surface').filter({ hasText: campaignName }).count(),
     until: (count) => count === 1,
   });
+}
+
+async function refreshOperatorNotification(page: import('@playwright/test').Page, expectedText: string) {
+  await waitForNotification(page, roleHomePaths.operator, expectedText, 60_000);
 }
 
 async function createSlot(page: import('@playwright/test').Page, note: string, rate = '3100') {
@@ -237,6 +241,7 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     });
 
     await page.goto(roleHomePaths.operator);
+    await refreshOperatorNotification(page, proofFileName);
     const proofCard = page.locator('form.surface').filter({ hasText: proofFileName }).first();
     await expect(proofCard.getByTestId(/operator-proof-view-cta-/)).toBeVisible();
     await proofCard.getByLabel('Review note').fill(proofReviewNote);
