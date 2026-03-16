@@ -1,6 +1,6 @@
-import type { Database } from '../../../../../packages/supabase/types/database';
+import { Constants, type Database } from '../../../../../packages/supabase/types/database';
 import { LiveSyncBadge } from '../../../components/live-sync-badge';
-import { getDriverWorkspaceData } from '../../../lib/dashboard-data';
+import { getDriverWorkspaceData, type HistoryArchiveFilters, type HistoryArchiveProofFilter, type HistoryArchiveStatusFilter } from '../../../lib/dashboard-data';
 import { updateDriverRunStatus, uploadDriverProof } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -53,9 +53,41 @@ function getNextRunAction(status: DriverRunStatus) {
   }
 }
 
+function normalizeHistoryStatus(value: string | undefined): HistoryArchiveStatusFilter {
+  if (value === 'all' || value === 'cancelled' || value === 'client_ready' || value === 'closed' || value === 'completed') {
+    return value;
+  }
+
+  return 'all';
+}
+
+function normalizeHistoryProof(value: string | undefined): HistoryArchiveProofFilter {
+  if (value === 'all' || value === 'approved' || value === 'missing' || value === 'rejected') {
+    return value;
+  }
+
+  return 'all';
+}
+
+function normalizeHistoryRegion(value: string | undefined): HistoryArchiveFilters['region'] {
+  if (!value || value === 'all') {
+    return 'all';
+  }
+
+  return Constants.public.Enums.region_code.includes(value as (typeof Constants.public.Enums.region_code)[number])
+    ? (value as HistoryArchiveFilters['region'])
+    : 'all';
+}
+
 export default async function DriverPage({ searchParams }: DriverPageProps) {
-  const data = await getDriverWorkspaceData();
   const params = (await searchParams) ?? {};
+  const historyFilters: HistoryArchiveFilters = {
+    proof: normalizeHistoryProof(readMessage(params.historyProof)),
+    query: (readMessage(params.historyQuery) ?? '').trim(),
+    region: normalizeHistoryRegion(readMessage(params.historyRegion)),
+    status: normalizeHistoryStatus(readMessage(params.historyStatus)),
+  };
+  const data = await getDriverWorkspaceData(historyFilters);
   const notice = readMessage(params.notice);
   const error = readMessage(params.error);
 
@@ -129,7 +161,7 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
         <div className="card-grid" style={{ marginTop: 24 }}>
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Assigned runs</h2>
-            <div className="stack">
+            <div className="stack" data-testid="driver-run-list">
               {data.assignedRuns.length > 0 ? data.assignedRuns.map((run) => {
                 const nextAction = getNextRunAction(run.runStatus);
 
@@ -292,6 +324,59 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
         <section className="card" data-testid="driver-recent-history" style={{ marginTop: 24 }}>
           <h2 style={{ marginTop: 0 }}>Recent history</h2>
           <p className="fine">Completed routes and proof outcomes you may need for recap or resubmission context.</p>
+          <form className="stack" method="get" style={{ marginTop: 16 }}>
+            <div className="card-grid" style={{ gridTemplateColumns: 'minmax(0, 2fr) repeat(3, minmax(0, 1fr))' }}>
+              <label className="form-field">
+                <span className="fine">Archive search</span>
+                <input
+                  className="input"
+                  data-testid="history-query"
+                  defaultValue={data.historyFilters.query}
+                  name="historyQuery"
+                  placeholder="Campaign, region, proof outcome"
+                  type="text"
+                />
+              </label>
+              <label className="form-field">
+                <span className="fine">Closeout state</span>
+                <select className="input" data-testid="history-status" defaultValue={data.historyFilters.status} name="historyStatus">
+                  <option value="all">All closeout states</option>
+                  <option value="completed">Completed</option>
+                  <option value="client_ready">Client-ready</option>
+                  <option value="closed">Closed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span className="fine">Proof</span>
+                <select className="input" data-testid="history-proof" defaultValue={data.historyFilters.proof} name="historyProof">
+                  <option value="all">All proof states</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="missing">Missing</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span className="fine">Region</span>
+                <select className="input" data-testid="history-region" defaultValue={data.historyFilters.region} name="historyRegion">
+                  <option value="all">All regions</option>
+                  {Constants.public.Enums.region_code.map((region) => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {data.historyFilterPills.map((item) => (
+                <span className="pill" data-testid={`history-pill-${item.label}`} key={item.label}>{item.label}: {item.value}</span>
+              ))}
+            </div>
+            <div>
+              <button className="button-secondary" data-testid="history-apply" type="submit">Apply archive filters</button>
+            </div>
+          </form>
           <div className="stack" style={{ marginTop: 16 }}>
             {data.recentHistory.length > 0 ? data.recentHistory.map((item) => (
               <div className="pill" data-testid={`driver-history-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
@@ -300,6 +385,7 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                   <span className={`badge ${item.tone}`}>{item.statusLabel}</span>
                 </div>
                 <div className="fine">{item.detail}</div>
+                <div className="fine">{item.closeoutLabel} • {item.dateLabel}{item.region ? ` • ${item.region}` : ''}</div>
                 {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
                 <a className="fine" data-testid={`driver-history-recap-link-${item.id}`} href={item.recapHref}>
                   Open recap

@@ -40,11 +40,30 @@ export type DashboardAttentionItem = {
   tone: BadgeTone;
 };
 
+export type HistoryArchiveStatusFilter = 'all' | 'cancelled' | 'client_ready' | 'closed' | 'completed';
+export type HistoryArchiveProofFilter = 'all' | 'approved' | 'missing' | 'rejected';
+export type HistoryArchiveFilters = {
+  proof: HistoryArchiveProofFilter;
+  query: string;
+  region: 'all' | RegionCode;
+  status: HistoryArchiveStatusFilter;
+};
+
+export type HistoryFilterPill = {
+  label: string;
+  value: string;
+};
+
 export type DashboardHistoryItem = {
+  closeoutLabel: string;
+  dateLabel: string;
+  dateValue: number;
   detail: string;
   id: string;
   proofLabel: string | null;
+  proofStatus: ProofAssetRow['status'] | null;
   recapHref: string;
+  region: RegionCode | null;
   statusLabel: string;
   tone: BadgeTone;
   title: string;
@@ -138,6 +157,8 @@ export type OperatorDashboardData = {
   badgeTone: BadgeTone;
   driverOptions: OperatorDriverOption[];
   healthSummary: DashboardKpi[];
+  historyFilterPills: HistoryFilterPill[];
+  historyFilters: HistoryArchiveFilters;
   incomingOffers: OperatorIncomingOffer[];
   inventorySlots: OperatorInventorySlot[];
   kpis: DashboardKpi[];
@@ -210,6 +231,8 @@ export type PlannerMarketplaceData = {
   filterPills: PlannerFilterPill[];
   filterState: PlannerMarketplaceFilters;
   healthSummary: DashboardKpi[];
+  historyFilterPills: HistoryFilterPill[];
+  historyFilters: HistoryArchiveFilters;
   recentHistory: DashboardHistoryItem[];
   regions: RegionCode[];
   sourceLabel: string;
@@ -256,6 +279,8 @@ export type DriverWorkspaceData = {
   assignedRuns: DriverAssignedRun[];
   badgeLabel: string;
   badgeTone: BadgeTone;
+  historyFilterPills: HistoryFilterPill[];
+  historyFilters: HistoryArchiveFilters;
   proofCallout: string;
   proofUploads: DriverUploadedProof[];
   recentHistory: DashboardHistoryItem[];
@@ -281,12 +306,152 @@ function getCampaignRecapHref(bookingId: string) {
   return `/campaigns/${bookingId}`;
 }
 
+function getHistoryCloseoutLabel(
+  booking: Pick<BookingRow, 'status'> & {
+    client_ready_at?: string | null;
+    closed_at?: string | null;
+  }
+) {
+  if (booking.closed_at) {
+    return 'Closed';
+  }
+
+  if (booking.status === 'cancelled') {
+    return 'Cancelled';
+  }
+
+  if (booking.client_ready_at) {
+    return 'Client-ready';
+  }
+
+  return booking.status === 'completed' ? 'Completed' : formatStatus(booking.status);
+}
+
+function matchesHistoryFilters(
+  item: {
+    closeoutLabel: string;
+    detail: string;
+    proofLabel: string | null;
+    proofStatus: ProofAssetRow['status'] | null;
+    region: RegionCode | null;
+    statusLabel: string;
+    title: string;
+  },
+  filters: HistoryArchiveFilters
+) {
+  const query = filters.query.trim().toLowerCase();
+
+  if (query) {
+    const searchable = [
+      item.title,
+      item.detail,
+      item.region ?? '',
+      item.closeoutLabel,
+      item.statusLabel,
+      item.proofLabel ?? '',
+      item.proofStatus ? formatStatus(item.proofStatus) : 'Missing proof',
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    if (!searchable.includes(query)) {
+      return false;
+    }
+  }
+
+  if (filters.region !== 'all' && item.region !== filters.region) {
+    return false;
+  }
+
+  if (filters.status !== 'all') {
+    if (filters.status === 'completed' && item.closeoutLabel !== 'Completed') {
+      return false;
+    }
+
+    if (filters.status === 'client_ready' && item.closeoutLabel !== 'Client-ready') {
+      return false;
+    }
+
+    if (filters.status === 'closed' && item.closeoutLabel !== 'Closed') {
+      return false;
+    }
+
+    if (filters.status === 'cancelled' && item.closeoutLabel !== 'Cancelled') {
+      return false;
+    }
+  }
+
+  if (filters.proof !== 'all') {
+    if (filters.proof === 'missing' && item.proofStatus !== null) {
+      return false;
+    }
+
+    if (filters.proof === 'approved' && item.proofStatus !== 'approved') {
+      return false;
+    }
+
+    if (filters.proof === 'rejected' && item.proofStatus !== 'rejected') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function buildHistoryFilterPills(items: DashboardHistoryItem[]) {
+  return [
+    { label: 'Archive items', value: String(items.length) },
+    {
+      label: 'Client-ready',
+      value: String(items.filter((item) => item.closeoutLabel === 'Client-ready').length),
+    },
+    {
+      label: 'Closed',
+      value: String(items.filter((item) => item.closeoutLabel === 'Closed').length),
+    },
+    {
+      label: 'Proof issues',
+      value: String(items.filter((item) => item.proofStatus === 'rejected').length),
+    },
+  ];
+}
+
+function sortHistoryItems(items: DashboardHistoryItem[]) {
+  return [...items].sort((left, right) => right.dateValue - left.dateValue);
+}
+
+function getHistoryDateValue(...candidates: Array<string | null | undefined>) {
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    const value = new Date(candidate).getTime();
+
+    if (!Number.isNaN(value)) {
+      return value;
+    }
+  }
+
+  return 0;
+}
+
 function buildOperatorDispatchState(
-  booking: Pick<BookingRow, 'status'>,
+  booking: Pick<BookingRow, 'client_ready_at' | 'closed_at' | 'status'>,
   run: Pick<RunRow, 'issue_note' | 'proof_required' | 'status'> | null,
   proofCount: number,
   latestProofStatus: ProofAssetRow['status'] | null
 ) {
+  if (booking.closed_at) {
+    return {
+      dispatchStageLabel: 'Closed',
+      dispatchStageTone: 'success' as const,
+      nextAction: 'Campaign closeout is complete. Keep the recap link and proof log ready for future reference.',
+      proofReviewLabel: proofCount > 0 ? `${formatPlural(proofCount, 'proof')} archived` : 'No proof uploaded',
+      proofReviewTone: proofCount > 0 ? 'success' as const : 'warning' as const,
+    };
+  }
+
   if (booking.status === 'cancelled') {
     return {
       dispatchStageLabel: 'Cancelled',
@@ -309,9 +474,11 @@ function buildOperatorDispatchState(
 
   if (latestProofStatus === 'approved') {
     return {
-      dispatchStageLabel: 'Client-ready',
+      dispatchStageLabel: booking.client_ready_at ? 'Client-ready' : 'Proof approved',
       dispatchStageTone: 'success' as const,
-      nextAction: 'Proof is approved. Wrap the campaign and share the final recap with the planner.',
+      nextAction: booking.client_ready_at
+        ? 'Client-ready closeout is set. Share the public recap or mark the campaign closed once delivery is complete.'
+        : 'Proof is approved. Mark the campaign client-ready, then share the final recap with the planner.',
       proofReviewLabel: `${formatPlural(proofCount, 'proof')} approved`,
       proofReviewTone: 'success' as const,
     };
@@ -457,7 +624,7 @@ function buildDriverProofAction(
 }
 
 function buildPlannerExecutionLabels(
-  booking: Pick<BookingRow, 'campaign_name' | 'status'> | null | undefined,
+  booking: Pick<BookingRow, 'campaign_name' | 'client_ready_at' | 'closed_at' | 'status'> | null | undefined,
   run: Pick<RunRow, 'issue_note' | 'issue_reported_at' | 'issue_resolved_at' | 'proof_required' | 'scheduled_end_at' | 'scheduled_start_at' | 'status'> | null | undefined,
   proofs: Pick<ProofAssetRow, 'status'>[] = []
 ) {
@@ -485,7 +652,11 @@ function buildPlannerExecutionLabels(
   let nextAction = 'Wait for the operator to review this offer.';
   let issueUpdatedLabel: string | null = null;
 
-  if (booking?.status === 'cancelled') {
+  if (booking?.closed_at) {
+    campaignStageLabel = 'Closed';
+    campaignStageTone = 'success';
+    nextAction = 'Campaign closeout is complete. Use the recap artifact for any later client follow-through.';
+  } else if (booking?.status === 'cancelled') {
     campaignStageLabel = 'Cancelled';
     nextAction = 'This campaign was cancelled. Rebook or open a new route if the window changes.';
   } else if (run?.status === 'issue') {
@@ -501,9 +672,11 @@ function buildPlannerExecutionLabels(
     campaignStageLabel = 'Proof review';
     nextAction = 'The driver uploaded proof. Operator review is the next milestone.';
   } else if (latestProof?.status === 'approved') {
-    campaignStageLabel = 'Closed';
+    campaignStageLabel = booking?.client_ready_at ? 'Client-ready' : 'Proof approved';
     campaignStageTone = 'success';
-    nextAction = 'Proof is approved and the campaign is ready for recap.';
+    nextAction = booking?.client_ready_at
+      ? 'Campaign is client-ready. Share the recap or wait for final closeout.'
+      : 'Proof is approved. The next closeout step is marking the campaign client-ready.';
   } else if (run?.status === 'live') {
     campaignStageLabel = 'Live';
     campaignStageTone = 'success';
@@ -625,7 +798,14 @@ async function getProfilesMap(ids: string[]) {
   return new Map((data as Pick<ProfileRow, 'full_name' | 'email' | 'id'>[]).map((item) => [item.id, item]));
 }
 
-export async function getOperatorDashboardData(): Promise<OperatorDashboardData> {
+export async function getOperatorDashboardData(
+  historyFilters: HistoryArchiveFilters = {
+    proof: 'all',
+    query: '',
+    region: 'all',
+    status: 'all',
+  }
+): Promise<OperatorDashboardData> {
   const fallback: OperatorDashboardData = {
     activeBookings: [],
     attentionQueue: [],
@@ -638,6 +818,8 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       { label: 'Dispatch next 6h', value: '0' },
       { label: 'Client-ready', value: '0' },
     ],
+    historyFilterPills: [],
+    historyFilters,
     incomingOffers: [],
     inventorySlots: [],
     kpis: [
@@ -678,7 +860,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       .order('created_at', { ascending: false }),
     supabase
       .from('bookings')
-      .select('id, slot_id, planner_organization_id, status, campaign_name, internal_note')
+      .select('id, slot_id, planner_organization_id, status, campaign_name, internal_note, client_ready_at, closed_at')
       .eq('operator_organization_id', profile.organization_id)
       .order('updated_at', { ascending: false }),
     supabase
@@ -713,7 +895,7 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
   >[];
   const bookings = (bookingsResult.data ?? []) as Pick<
     BookingRow,
-    'campaign_name' | 'id' | 'internal_note' | 'planner_organization_id' | 'slot_id' | 'status'
+    'campaign_name' | 'client_ready_at' | 'closed_at' | 'id' | 'internal_note' | 'planner_organization_id' | 'slot_id' | 'status'
   >[];
   const organizationDrivers = (driversResult.data ?? []) as Pick<
     ProfileRow,
@@ -888,7 +1070,11 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
     },
     {
       label: 'Client-ready',
-      value: String(activeBookingContexts.filter((context) => context.latestProof?.status === 'approved').length),
+      value: String(
+        activeBookingContexts.filter(
+          (context) => Boolean(context.booking.client_ready_at) && !Boolean(context.booking.closed_at)
+        ).length
+      ),
     },
   ];
 
@@ -948,30 +1134,51 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       }),
   ].slice(0, 6);
 
-  const recentHistory: DashboardHistoryItem[] = activeBookingContexts
+  const filteredHistory = activeBookingContexts
     .filter(
       (context) =>
-        context.booking.status === 'completed' ||
+        Boolean(context.booking.closed_at) ||
+        Boolean(context.booking.client_ready_at) ||
         context.booking.status === 'cancelled' ||
-        context.latestProof?.status === 'approved'
+        context.latestProof?.status === 'rejected'
     )
-    .slice(0, 6)
-    .map((context) => ({
-      detail: context.run
-        ? `${formatStatus(context.run.status)} • ${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)}`
-        : context.slot
-          ? buildSlotSummary(context.slot)
-          : 'Campaign schedule unavailable',
-      id: `operator-history-${context.booking.id}`,
-      proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
-      recapHref: getCampaignRecapHref(context.booking.id),
-      statusLabel: formatStatus(context.booking.status),
-      title: context.booking.campaign_name,
-      tone:
-        context.booking.status === 'completed' || context.latestProof?.status === 'approved'
-          ? 'success'
-          : 'warning',
-    }));
+    .map((context) => {
+      const closeoutLabel = getHistoryCloseoutLabel(context.booking);
+      const dateValue = getHistoryDateValue(
+        context.booking.closed_at,
+        context.booking.client_ready_at,
+        context.run?.scheduled_end_at,
+        context.run?.scheduled_start_at
+      );
+
+      return {
+        closeoutLabel,
+        dateLabel:
+          formatOptionalDateTime(context.booking.closed_at ?? context.booking.client_ready_at ?? context.run?.scheduled_end_at) ??
+          'Recently',
+        dateValue,
+        detail: context.run
+          ? `${formatStatus(context.run.status)} • ${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)}`
+          : context.slot
+            ? buildSlotSummary(context.slot)
+            : 'Campaign schedule unavailable',
+        id: `operator-history-${context.booking.id}`,
+        proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+        proofStatus: context.latestProof?.status ?? null,
+        recapHref: getCampaignRecapHref(context.booking.id),
+        region: context.slot?.region ?? null,
+        statusLabel: formatStatus(context.booking.status),
+        title: context.booking.campaign_name,
+        tone:
+          closeoutLabel === 'Closed' ||
+          closeoutLabel === 'Client-ready' ||
+          context.latestProof?.status === 'approved'
+            ? ('success' as const)
+            : ('warning' as const),
+      };
+    })
+    .filter((item) => matchesHistoryFilters(item, historyFilters));
+  const recentHistory: DashboardHistoryItem[] = sortHistoryItems(filteredHistory).slice(0, 6);
 
   return {
     activeBookings,
@@ -983,6 +1190,8 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
       label: driver.full_name ?? driver.email,
     })),
     healthSummary,
+    historyFilterPills: buildHistoryFilterPills(filteredHistory),
+    historyFilters,
     incomingOffers: offers.slice(0, 8).map((offer) => {
       const slot = slotMap.get(offer.slot_id);
       const truck = slot ? truckMap.get(slot.truck_id) : null;
@@ -1037,7 +1246,13 @@ export async function getOperatorDashboardData(): Promise<OperatorDashboardData>
 }
 
 export async function getPlannerMarketplaceData(
-  filters: PlannerMarketplaceFilters
+  filters: PlannerMarketplaceFilters,
+  historyFilters: HistoryArchiveFilters = {
+    proof: 'all',
+    query: '',
+    region: 'all',
+    status: 'all',
+  }
 ): Promise<PlannerMarketplaceData> {
   const fallback: PlannerMarketplaceData = {
     attentionQueue: [],
@@ -1051,6 +1266,8 @@ export async function getPlannerMarketplaceData(
       { label: 'Awaiting proof', value: '0' },
       { label: 'Client-ready', value: '0' },
     ],
+    historyFilterPills: [],
+    historyFilters,
     regions: ['DFW'],
     recentHistory: [],
     sourceLabel: 'Authenticated planner view',
@@ -1086,7 +1303,7 @@ export async function getPlannerMarketplaceData(
       .order('created_at', { ascending: false }),
     supabase
       .from('bookings')
-      .select('id, offer_id, slot_id, status, campaign_name, internal_note')
+      .select('id, offer_id, slot_id, status, campaign_name, internal_note, client_ready_at, closed_at')
       .eq('planner_organization_id', profile.organization_id),
     supabase
       .from('runs')
@@ -1120,7 +1337,7 @@ export async function getPlannerMarketplaceData(
   >[];
   const bookings = (bookingsResult.data ?? []) as Pick<
     BookingRow,
-    'campaign_name' | 'id' | 'internal_note' | 'offer_id' | 'slot_id' | 'status'
+    'campaign_name' | 'client_ready_at' | 'closed_at' | 'id' | 'internal_note' | 'offer_id' | 'slot_id' | 'status'
   >[];
   const runs = (runsResult.data ?? []) as Pick<
     RunRow,
@@ -1267,7 +1484,11 @@ export async function getPlannerMarketplaceData(
     },
     {
       label: 'Client-ready',
-      value: String(submittedOfferContexts.filter((context) => context.execution.campaignStageLabel === 'Closed').length),
+      value: String(
+        submittedOfferContexts.filter(
+          (context) => context.execution.campaignStageLabel === 'Client-ready'
+        ).length
+      ),
     },
   ];
 
@@ -1332,24 +1553,50 @@ export async function getPlannerMarketplaceData(
     updatedLabel: dateTimeFormatter.format(new Date(context.offer.updated_at)),
   }));
 
-  const recentHistory: DashboardHistoryItem[] = submittedOfferContexts
+  const filteredHistory = submittedOfferContexts
     .filter(
       (
         context,
       ): context is (typeof submittedOfferContexts)[number] & {
         booking: NonNullable<(typeof submittedOfferContexts)[number]['booking']>;
-      } => Boolean(context.booking) && ['Cancelled', 'Closed', 'Proof rejected'].includes(context.execution.campaignStageLabel)
+      } => {
+        const booking = context.booking;
+
+        if (!booking) {
+          return false;
+        }
+
+        return (
+          Boolean(booking.client_ready_at) ||
+          Boolean(booking.closed_at) ||
+          booking.status === 'cancelled' ||
+          context.execution.campaignStageLabel === 'Proof rejected'
+        );
+      }
     )
-    .slice(0, 6)
     .map((context) => ({
+      closeoutLabel: getHistoryCloseoutLabel(context.booking),
+      dateLabel:
+        formatOptionalDateTime(context.booking.closed_at ?? context.booking.client_ready_at ?? context.run?.scheduled_end_at) ??
+        'Recently',
+      dateValue: getHistoryDateValue(
+        context.booking.closed_at,
+        context.booking.client_ready_at,
+        context.run?.scheduled_end_at,
+        context.offer.updated_at
+      ),
       detail: context.execution.executionLabel ?? context.execution.nextAction,
       id: `planner-history-${context.offer.id}`,
       proofLabel: context.execution.proofLabel,
+      proofStatus: context.proofs[0]?.status ?? null,
       recapHref: getCampaignRecapHref(context.booking.id),
+      region: context.slot?.region ?? null,
       statusLabel: context.execution.campaignStageLabel,
-      title: context.booking?.campaign_name ?? context.slot?.campaign_notes ?? 'Tracked campaign',
+      title: context.booking.campaign_name,
       tone: context.execution.campaignStageTone,
-    }));
+    }))
+    .filter((item) => matchesHistoryFilters(item, historyFilters));
+  const recentHistory: DashboardHistoryItem[] = sortHistoryItems(filteredHistory).slice(0, 6);
 
   return {
     availableSlots: filteredSlots.map((slot) => {
@@ -1386,6 +1633,8 @@ export async function getPlannerMarketplaceData(
     filterPills,
     filterState: filters,
     healthSummary,
+    historyFilterPills: buildHistoryFilterPills(filteredHistory),
+    historyFilters,
     recentHistory,
     regions: regions.length > 0 ? regions : fallback.regions,
     sourceLabel: organization?.name
@@ -1402,12 +1651,21 @@ export async function getPlannerMarketplaceData(
   };
 }
 
-export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
+export async function getDriverWorkspaceData(
+  historyFilters: HistoryArchiveFilters = {
+    proof: 'all',
+    query: '',
+    region: 'all',
+    status: 'all',
+  }
+): Promise<DriverWorkspaceData> {
   const fallback: DriverWorkspaceData = {
     attentionQueue: [],
     assignedRuns: [],
     badgeLabel: 'Proof upload pending',
     badgeTone: 'warning',
+    historyFilterPills: [],
+    historyFilters,
     proofCallout: 'Supabase proof storage is wired, but no assigned run data is currently available.',
     proofUploads: [],
     recentHistory: [],
@@ -1428,13 +1686,12 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
     return fallback;
   }
 
-  const [runsResult, bookingsResult, proofAssetsResult] = await Promise.all([
+  const [runsResult, proofAssetsResult] = await Promise.all([
     supabase
       .from('runs')
       .select('id, booking_id, issue_note, issue_reported_at, issue_resolved_at, scheduled_start_at, scheduled_end_at, status, proof_required')
       .eq('driver_id', profile.id)
       .order('scheduled_start_at'),
-    supabase.from('bookings').select('id, campaign_name, status, internal_note'),
     supabase
       .from('proof_assets')
       .select('id, run_id, storage_path, captured_at, created_at, status, review_notes, reviewed_at')
@@ -1442,7 +1699,7 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       .order('created_at', { ascending: false }),
   ]);
 
-  if (runsResult.error || bookingsResult.error || proofAssetsResult.error) {
+  if (runsResult.error || proofAssetsResult.error) {
     return fallback;
   }
 
@@ -1458,15 +1715,43 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
     | 'scheduled_start_at'
     | 'status'
   >[];
-  const bookings = (bookingsResult.data ?? []) as Pick<
-    BookingRow,
-    'campaign_name' | 'id' | 'internal_note' | 'status'
-  >[];
   const proofAssets = (proofAssetsResult.data ?? []) as Pick<
     ProofAssetRow,
     'captured_at' | 'created_at' | 'id' | 'review_notes' | 'reviewed_at' | 'run_id' | 'status' | 'storage_path'
   >[];
+  const runBookingIds = Array.from(new Set(runs.map((run) => run.booking_id)));
+  const bookingsResult =
+    runBookingIds.length > 0
+      ? await supabase
+          .from('bookings')
+          .select('id, campaign_name, status, internal_note, client_ready_at, closed_at, slot_id')
+          .in('id', runBookingIds)
+      : { data: [], error: null };
 
+  if (bookingsResult.error) {
+    return fallback;
+  }
+
+  const bookings = (bookingsResult.data ?? []) as Pick<
+    BookingRow,
+    'campaign_name' | 'client_ready_at' | 'closed_at' | 'id' | 'internal_note' | 'slot_id' | 'status'
+  >[];
+
+  const slotIds = Array.from(new Set(bookings.map((booking) => booking.slot_id)));
+  const slotsResult =
+    slotIds.length > 0
+      ? await supabase
+          .from('slots')
+          .select('id, region')
+          .in('id', slotIds)
+      : { data: [], error: null };
+
+  if (slotsResult.error) {
+    return fallback;
+  }
+
+  const slots = (slotsResult.data ?? []) as Pick<SlotRow, 'id' | 'region'>[];
+  const slotMap = new Map(slots.map((slot) => [slot.id, slot]));
   const bookingMap = new Map(bookings.map((booking) => [booking.id, booking]));
   const proofsByRun = new Map<string, Pick<
     ProofAssetRow,
@@ -1547,26 +1832,48 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
       })),
   ].slice(0, 6);
 
-  const recentHistory: DashboardHistoryItem[] = runContexts
+  const filteredHistory = runContexts
     .filter(
       (context) =>
         context.run.status === 'completed' ||
         context.latestProof?.status === 'approved' ||
         context.latestProof?.status === 'rejected'
     )
-    .slice(0, 6)
-    .map((context) => ({
-      detail: `${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)} • ${context.proofAction.proofActionCallout}`,
-      id: `driver-history-${context.run.id}`,
-      proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
-      recapHref: getCampaignRecapHref(context.run.booking_id),
-      statusLabel: formatStatus(context.run.status),
-      title: context.booking?.campaign_name ?? 'Assigned campaign',
-      tone:
-        context.latestProof?.status === 'approved' || context.run.status === 'completed'
-          ? 'success'
-          : 'warning',
-    }));
+    .map((context) => {
+      const booking = context.booking;
+      const closeoutLabel = booking ? getHistoryCloseoutLabel(booking) : 'Completed';
+      const dateValue = getHistoryDateValue(
+        booking?.closed_at,
+        booking?.client_ready_at,
+        context.run.scheduled_end_at,
+        context.run.scheduled_start_at
+      );
+
+      return {
+        closeoutLabel,
+        dateLabel:
+          formatOptionalDateTime(booking?.closed_at ?? booking?.client_ready_at ?? context.run.scheduled_end_at) ??
+          'Recently',
+        dateValue,
+        detail: `${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)} • ${context.proofAction.proofActionCallout}`,
+        id: `driver-history-${context.run.id}`,
+        proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
+        proofStatus: context.latestProof?.status ?? null,
+        recapHref: getCampaignRecapHref(context.run.booking_id),
+        region: booking ? slotMap.get(booking.slot_id)?.region ?? null : null,
+        statusLabel: formatStatus(context.run.status),
+        title: context.booking?.campaign_name ?? 'Assigned campaign',
+        tone:
+          context.latestProof?.status === 'approved' ||
+          closeoutLabel === 'Closed' ||
+          closeoutLabel === 'Client-ready' ||
+          context.run.status === 'completed'
+            ? ('success' as const)
+            : ('warning' as const),
+      };
+    })
+    .filter((item) => matchesHistoryFilters(item, historyFilters));
+  const recentHistory: DashboardHistoryItem[] = sortHistoryItems(filteredHistory).slice(0, 6);
 
   return {
     attentionQueue,
@@ -1594,6 +1901,8 @@ export async function getDriverWorkspaceData(): Promise<DriverWorkspaceData> {
         ? `${formatPlural(approvedProofs.length, 'proof')} approved`
         : 'Proof review pending',
     badgeTone: approvedProofs.length > 0 ? 'success' : 'warning',
+    historyFilterPills: buildHistoryFilterPills(filteredHistory),
+    historyFilters,
     proofCallout:
       proofAssets.length > 0
         ? `${formatPlural(proofAssets.length, 'proof file')} in review across your assigned runs.`

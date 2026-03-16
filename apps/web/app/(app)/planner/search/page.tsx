@@ -2,6 +2,9 @@ import { Constants } from '../../../../../../packages/supabase/types/database';
 import { LiveSyncBadge } from '../../../../components/live-sync-badge';
 import {
   getPlannerMarketplaceData,
+  type HistoryArchiveFilters,
+  type HistoryArchiveProofFilter,
+  type HistoryArchiveStatusFilter,
   type PlannerAvailabilityFilter,
   type PlannerMarketplaceFilters,
   type PlannerSortOption,
@@ -45,7 +48,33 @@ function normalizeSort(value: string | undefined): PlannerSortOption {
   return 'soonest';
 }
 
-function buildReturnPath(filters: PlannerMarketplaceFilters) {
+function normalizeHistoryStatus(value: string | undefined): HistoryArchiveStatusFilter {
+  if (value === 'all' || value === 'cancelled' || value === 'client_ready' || value === 'closed' || value === 'completed') {
+    return value;
+  }
+
+  return 'all';
+}
+
+function normalizeHistoryProof(value: string | undefined): HistoryArchiveProofFilter {
+  if (value === 'all' || value === 'approved' || value === 'missing' || value === 'rejected') {
+    return value;
+  }
+
+  return 'all';
+}
+
+function normalizeHistoryRegion(value: string | undefined): HistoryArchiveFilters['region'] {
+  if (!value || value === 'all') {
+    return 'all';
+  }
+
+  return Constants.public.Enums.region_code.includes(value as (typeof Constants.public.Enums.region_code)[number])
+    ? (value as HistoryArchiveFilters['region'])
+    : 'all';
+}
+
+function buildReturnPath(filters: PlannerMarketplaceFilters, historyFilters: HistoryArchiveFilters) {
   const params = new URLSearchParams();
 
   if (filters.query) {
@@ -64,6 +93,22 @@ function buildReturnPath(filters: PlannerMarketplaceFilters) {
     params.set('sort', filters.sort);
   }
 
+  if (historyFilters.query) {
+    params.set('historyQuery', historyFilters.query);
+  }
+
+  if (historyFilters.region !== 'all') {
+    params.set('historyRegion', historyFilters.region);
+  }
+
+  if (historyFilters.status !== 'all') {
+    params.set('historyStatus', historyFilters.status);
+  }
+
+  if (historyFilters.proof !== 'all') {
+    params.set('historyProof', historyFilters.proof);
+  }
+
   const queryString = params.toString();
   return queryString.length > 0 ? `/planner/search?${queryString}` : '/planner/search';
 }
@@ -76,10 +121,16 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
     region: normalizeRegion(readMessage(params.region)),
     sort: normalizeSort(readMessage(params.sort)),
   };
-  const data = await getPlannerMarketplaceData(filters);
+  const historyFilters: HistoryArchiveFilters = {
+    proof: normalizeHistoryProof(readMessage(params.historyProof)),
+    query: (readMessage(params.historyQuery) ?? '').trim(),
+    region: normalizeHistoryRegion(readMessage(params.historyRegion)),
+    status: normalizeHistoryStatus(readMessage(params.historyStatus)),
+  };
+  const data = await getPlannerMarketplaceData(filters, historyFilters);
   const notice = readMessage(params.notice);
   const error = readMessage(params.error);
-  const returnPath = buildReturnPath(filters);
+  const returnPath = buildReturnPath(filters, historyFilters);
 
   return (
     <div className="stack">
@@ -99,6 +150,10 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
         </div>
 
         <form className="stack" method="get" style={{ marginTop: 24 }}>
+          <input name="historyQuery" type="hidden" value={data.historyFilters.query} />
+          <input name="historyRegion" type="hidden" value={data.historyFilters.region} />
+          <input name="historyStatus" type="hidden" value={data.historyFilters.status} />
+          <input name="historyProof" type="hidden" value={data.historyFilters.proof} />
           <div className="card-grid" style={{ gridTemplateColumns: 'minmax(0, 2fr) repeat(3, minmax(0, 1fr))' }}>
             <label className="form-field">
               <span className="fine">Search</span>
@@ -312,6 +367,63 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
           </div>
           <span className="fine">Campaign archive</span>
         </div>
+        <form className="stack" method="get" style={{ marginTop: 18 }}>
+          <input name="query" type="hidden" value={data.filterState.query} />
+          <input name="region" type="hidden" value={data.filterState.region} />
+          <input name="availability" type="hidden" value={data.filterState.availability} />
+          <input name="sort" type="hidden" value={data.filterState.sort} />
+          <div className="card-grid" style={{ gridTemplateColumns: 'minmax(0, 2fr) repeat(3, minmax(0, 1fr))' }}>
+            <label className="form-field">
+              <span className="fine">Archive search</span>
+              <input
+                className="input"
+                data-testid="archive-history-query"
+                defaultValue={data.historyFilters.query}
+                name="historyQuery"
+                placeholder="Campaign, region, recap status"
+                type="text"
+              />
+            </label>
+            <label className="form-field">
+              <span className="fine">Closeout state</span>
+              <select className="input" data-testid="archive-history-status" defaultValue={data.historyFilters.status} name="historyStatus">
+                <option value="all">All closeout states</option>
+                <option value="completed">Completed</option>
+                <option value="client_ready">Client-ready</option>
+                <option value="closed">Closed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span className="fine">Proof</span>
+              <select className="input" data-testid="archive-history-proof" defaultValue={data.historyFilters.proof} name="historyProof">
+                <option value="all">All proof states</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="missing">Missing</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span className="fine">Region</span>
+              <select className="input" data-testid="archive-history-region" defaultValue={data.historyFilters.region} name="historyRegion">
+                <option value="all">All regions</option>
+                {data.regions.map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div data-testid="archive-filter-pills" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {data.historyFilterPills.map((item) => (
+              <span className="pill" key={item.label}>{item.label}: {item.value}</span>
+            ))}
+          </div>
+          <div>
+            <button className="button-secondary" data-testid="archive-apply-button" type="submit">Apply archive filters</button>
+          </div>
+        </form>
         <div className="stack" style={{ marginTop: 18 }}>
           {data.recentHistory.length > 0 ? data.recentHistory.map((item) => (
             <div className="pill" data-testid={`planner-history-item-${item.id}`} key={item.id} style={{ alignItems: 'flex-start', display: 'grid' }}>
@@ -320,6 +432,7 @@ export default async function PlannerSearchPage({ searchParams }: PlannerSearchP
                 <span className={`badge ${item.tone}`}>{item.statusLabel}</span>
               </div>
               <div className="fine">{item.detail}</div>
+              <div className="fine">{item.closeoutLabel} • {item.dateLabel}{item.region ? ` • ${item.region}` : ''}</div>
               {item.proofLabel ? <div className="fine">Proof: {item.proofLabel}</div> : null}
               <a className="fine" data-testid={`planner-history-recap-link-${item.id}`} href={item.recapHref}>
                 Open recap

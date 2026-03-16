@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 
 type CampaignRecapActionsProps = {
   campaignName: string;
+  publicShareUrl?: string | null;
 };
 
-export function CampaignRecapActions({ campaignName }: CampaignRecapActionsProps) {
+export function CampaignRecapActions({ campaignName, publicShareUrl }: CampaignRecapActionsProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -67,6 +68,43 @@ export function CampaignRecapActions({ campaignName }: CampaignRecapActionsProps
     }
   }
 
+  async function copyPublicShareLink() {
+    if (!publicShareUrl) {
+      setNotice('Public recap link is not available yet.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(publicShareUrl);
+      setNotice('Public recap link copied.');
+    } catch {
+      setNotice('Copy failed on this browser.');
+    }
+  }
+
+  async function sharePublicLink() {
+    if (!publicShareUrl) {
+      setNotice('Public recap link is not available yet.');
+      return;
+    }
+
+    if (!navigator.share) {
+      setNotice('Native share is unavailable on this browser.');
+      return;
+    }
+
+    try {
+      await navigator.share({
+        text: `${campaignName} public recap`,
+        title: `${campaignName} public recap`,
+        url: publicShareUrl,
+      });
+      setNotice('Share sheet opened for the public recap link.');
+    } catch {
+      setNotice(null);
+    }
+  }
+
   function printRecap() {
     window.print();
   }
@@ -98,9 +136,31 @@ export function CampaignRecapActions({ campaignName }: CampaignRecapActionsProps
         >
           Share secure link
         </button>
+        {publicShareUrl ? (
+          <>
+            <button
+              className="button-secondary"
+              data-testid="campaign-recap-copy-public-link-button"
+              onClick={() => void copyPublicShareLink()}
+              type="button"
+            >
+              Copy public link
+            </button>
+            <button
+              className="button-secondary"
+              data-testid="campaign-recap-native-public-share-button"
+              onClick={() => void sharePublicLink()}
+              type="button"
+            >
+              Share public link
+            </button>
+          </>
+        ) : null}
       </div>
       <div className="fine" data-testid="campaign-recap-share-policy">
-        Secure links require GlowHaul sign-in. Use Print / Save PDF for client-safe distribution.
+        {publicShareUrl
+          ? 'Public recap links are client-safe. Use Copy public link or Share public link for external delivery, or Print / Save PDF for a static artifact.'
+          : 'Secure links require GlowHaul sign-in. Use Print / Save PDF for client-safe distribution.'}
       </div>
       {notice ? (
         <div className="fine" data-testid="campaign-recap-actions-notice">

@@ -9,7 +9,13 @@ async function refreshOperatorSlot(page: import('@playwright/test').Page, note: 
     description: `operator slot ${note}`,
     page,
     path: roleHomePaths.operator,
-    read: async () => page.locator('form.surface').filter({ hasText: note }).count(),
+    refreshMode: 'goto',
+    read: async () =>
+      page
+        .getByTestId('operator-inventory-editor')
+        .locator('form.surface')
+        .filter({ hasText: note })
+        .count(),
     until: (count) => count === 1,
   });
 }
@@ -255,6 +261,14 @@ test('operator can reject offers, progress campaigns, and review proof', async (
       },
       until: (text) => text.includes(proofReviewNote) && text.includes('Review already completed'),
     });
+    const operatorHistory = page.getByTestId('operator-recent-history');
+    await operatorHistory.getByLabel('Archive search').fill('Dallas Product Launch');
+    await operatorHistory.getByLabel('Proof').selectOption('rejected');
+    await operatorHistory.getByRole('button', { name: 'Apply archive filters' }).click();
+    await expect.poll(() => new URL(page.url()).searchParams.get('historyProof')).toBe('rejected');
+    await expect.poll(() => new URL(page.url()).searchParams.get('historyQuery')).toBe('Dallas Product Launch');
+    await expect(operatorHistory).toContainText('Dallas Product Launch');
+    await expect(operatorHistory).toContainText('Proof: Rejected');
 
     await driverPage.goto(roleHomePaths.driver);
     const rejectedProofCard = driverPage.locator('div.pill').filter({ hasText: proofFileName }).first();
