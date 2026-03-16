@@ -123,7 +123,9 @@ test('planner marketplace exposes free-first map strategy and filter controls', 
     await expect(page.getByTestId('planner-campaign-health')).toBeVisible();
     await expect(page.getByTestId('planner-attention-queue')).toBeVisible();
     await expect(page.getByTestId('planner-recent-history')).toBeVisible();
-    const marketplaceFilters = page.locator('form[method="get"]').first();
+    const marketplaceFilters = page
+      .locator('form[method="get"]')
+      .filter({ has: page.getByTestId('planner-apply-filters-submit') });
     await marketplaceFilters.getByLabel('Search', { exact: true }).fill(slotNote);
     await marketplaceFilters.getByLabel('Region').selectOption('Houston');
     await marketplaceFilters.getByRole('button', { name: 'Apply filters' }).click();
@@ -346,7 +348,10 @@ test('planner can close out a completed campaign and publish a public recap', as
     await page.goto(roleHomePaths.planner);
     await page.getByLabel('Archive search').fill(campaignName);
     await page.getByLabel('Closeout state').selectOption('closed');
-    await page.getByRole('button', { name: 'Apply archive filters' }).last().click();
+    const archiveFilters = page
+      .locator('form[method="get"]')
+      .filter({ has: page.getByTestId('archive-apply-button') });
+    await archiveFilters.getByTestId('archive-apply-button').click();
     await expect.poll(() => new URL(page.url()).searchParams.get('historyStatus')).toBe('closed');
     await expect.poll(() => new URL(page.url()).searchParams.get('historyQuery')).toBe(campaignName);
     await expect(page.getByTestId('planner-recent-history')).toContainText(campaignName);

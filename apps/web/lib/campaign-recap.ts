@@ -162,6 +162,14 @@ function buildAnonymizedDriverMap(
   );
 }
 
+function redactShareToken(token: string) {
+  if (token.length <= 8) {
+    return '***';
+  }
+
+  return `${token.slice(0, 4)}…${token.slice(-4)}`;
+}
+
 function getCloseoutLabel(booking: Pick<SnapshotBooking, 'client_ready_at' | 'closed_at' | 'status'>) {
   if (booking.closed_at) {
     return 'Closed';
@@ -445,6 +453,7 @@ async function loadCampaignSnapshot(admin: RecapAdminClient, bookingId: string):
       .is('revoked_at', null)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
 
@@ -640,6 +649,7 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
     .eq('token', shareToken)
     .is('revoked_at', null)
     .gt('expires_at', new Date().toISOString())
+    .limit(1)
     .maybeSingle();
 
   if (shareError || !share) {
@@ -670,6 +680,7 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
     : 'Route summary unavailable';
   const timeline = buildTimeline(booking, runs, publicProofs, anonymizedDriverMap, { redactIssueDetails: true });
   const stageSummary = buildStageSummary(booking, latestRun, latestProof, publicProofs.length);
+  const redactedShareToken = redactShareToken(shareToken);
 
   try {
     const { error: touchShareError } = await admin
@@ -680,13 +691,13 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
     if (touchShareError) {
       console.error('Failed to update campaign recap share access time.', {
         error: touchShareError,
-        shareToken,
+        shareToken: redactedShareToken,
       });
     }
   } catch (error) {
     console.error('Failed to update campaign recap share access time.', {
       error,
-      shareToken,
+      shareToken: redactedShareToken,
     });
   }
 

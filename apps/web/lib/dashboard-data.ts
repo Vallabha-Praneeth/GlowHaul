@@ -40,7 +40,7 @@ export type DashboardAttentionItem = {
   tone: BadgeTone;
 };
 
-export type HistoryArchiveStatusFilter = 'all' | 'cancelled' | 'client_ready' | 'closed';
+export type HistoryArchiveStatusFilter = 'all' | 'cancelled' | 'client_ready' | 'closed' | 'completed';
 export type HistoryArchiveProofFilter = 'all' | 'approved' | 'missing' | 'rejected';
 export type HistoryArchiveFilters = {
   proof: HistoryArchiveProofFilter;
@@ -57,6 +57,7 @@ export type HistoryFilterPill = {
 export type DashboardHistoryItem = {
   closeoutLabel: string;
   dateLabel: string;
+  dateValue: number;
   detail: string;
   id: string;
   proofLabel: string | null;
@@ -363,6 +364,10 @@ function matchesHistoryFilters(
   }
 
   if (filters.status !== 'all') {
+    if (filters.status === 'completed' && item.closeoutLabel !== 'Completed') {
+      return false;
+    }
+
     if (filters.status === 'client_ready' && item.closeoutLabel !== 'Client-ready') {
       return false;
     }
@@ -409,6 +414,26 @@ function buildHistoryFilterPills(items: DashboardHistoryItem[]) {
       value: String(items.filter((item) => item.proofStatus === 'rejected').length),
     },
   ];
+}
+
+function sortHistoryItems(items: DashboardHistoryItem[]) {
+  return [...items].sort((left, right) => right.dateValue - left.dateValue);
+}
+
+function getHistoryDateValue(...candidates: Array<string | null | undefined>) {
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    const value = new Date(candidate).getTime();
+
+    if (!Number.isNaN(value)) {
+      return value;
+    }
+  }
+
+  return 0;
 }
 
 function buildOperatorDispatchState(
@@ -1109,7 +1134,7 @@ export async function getOperatorDashboardData(
       }),
   ].slice(0, 6);
 
-  const recentHistory: DashboardHistoryItem[] = activeBookingContexts
+  const filteredHistory = activeBookingContexts
     .filter(
       (context) =>
         Boolean(context.booking.closed_at) ||
@@ -1119,12 +1144,19 @@ export async function getOperatorDashboardData(
     )
     .map((context) => {
       const closeoutLabel = getHistoryCloseoutLabel(context.booking);
+      const dateValue = getHistoryDateValue(
+        context.booking.closed_at,
+        context.booking.client_ready_at,
+        context.run?.scheduled_end_at,
+        context.run?.scheduled_start_at
+      );
 
       return {
         closeoutLabel,
         dateLabel:
           formatOptionalDateTime(context.booking.closed_at ?? context.booking.client_ready_at ?? context.run?.scheduled_end_at) ??
           'Recently',
+        dateValue,
         detail: context.run
           ? `${formatStatus(context.run.status)} • ${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)}`
           : context.slot
@@ -1145,8 +1177,8 @@ export async function getOperatorDashboardData(
             : ('warning' as const),
       };
     })
-    .filter((item) => matchesHistoryFilters(item, historyFilters))
-    .slice(0, 6);
+    .filter((item) => matchesHistoryFilters(item, historyFilters));
+  const recentHistory: DashboardHistoryItem[] = sortHistoryItems(filteredHistory).slice(0, 6);
 
   return {
     activeBookings,
@@ -1158,7 +1190,7 @@ export async function getOperatorDashboardData(
       label: driver.full_name ?? driver.email,
     })),
     healthSummary,
-    historyFilterPills: buildHistoryFilterPills(recentHistory),
+    historyFilterPills: buildHistoryFilterPills(filteredHistory),
     historyFilters,
     incomingOffers: offers.slice(0, 8).map((offer) => {
       const slot = slotMap.get(offer.slot_id);
@@ -1521,7 +1553,7 @@ export async function getPlannerMarketplaceData(
     updatedLabel: dateTimeFormatter.format(new Date(context.offer.updated_at)),
   }));
 
-  const recentHistory: DashboardHistoryItem[] = submittedOfferContexts
+  const filteredHistory = submittedOfferContexts
     .filter(
       (
         context,
@@ -1547,6 +1579,12 @@ export async function getPlannerMarketplaceData(
       dateLabel:
         formatOptionalDateTime(context.booking.closed_at ?? context.booking.client_ready_at ?? context.run?.scheduled_end_at) ??
         'Recently',
+      dateValue: getHistoryDateValue(
+        context.booking.closed_at,
+        context.booking.client_ready_at,
+        context.run?.scheduled_end_at,
+        context.offer.updated_at
+      ),
       detail: context.execution.executionLabel ?? context.execution.nextAction,
       id: `planner-history-${context.offer.id}`,
       proofLabel: context.execution.proofLabel,
@@ -1557,8 +1595,8 @@ export async function getPlannerMarketplaceData(
       title: context.booking.campaign_name,
       tone: context.execution.campaignStageTone,
     }))
-    .filter((item) => matchesHistoryFilters(item, historyFilters))
-    .slice(0, 6);
+    .filter((item) => matchesHistoryFilters(item, historyFilters));
+  const recentHistory: DashboardHistoryItem[] = sortHistoryItems(filteredHistory).slice(0, 6);
 
   return {
     availableSlots: filteredSlots.map((slot) => {
@@ -1595,7 +1633,7 @@ export async function getPlannerMarketplaceData(
     filterPills,
     filterState: filters,
     healthSummary,
-    historyFilterPills: buildHistoryFilterPills(recentHistory),
+    historyFilterPills: buildHistoryFilterPills(filteredHistory),
     historyFilters,
     recentHistory,
     regions: regions.length > 0 ? regions : fallback.regions,
@@ -1794,7 +1832,7 @@ export async function getDriverWorkspaceData(
       })),
   ].slice(0, 6);
 
-  const recentHistory: DashboardHistoryItem[] = runContexts
+  const filteredHistory = runContexts
     .filter(
       (context) =>
         context.run.status === 'completed' ||
@@ -1804,12 +1842,19 @@ export async function getDriverWorkspaceData(
     .map((context) => {
       const booking = context.booking;
       const closeoutLabel = booking ? getHistoryCloseoutLabel(booking) : 'Completed';
+      const dateValue = getHistoryDateValue(
+        booking?.closed_at,
+        booking?.client_ready_at,
+        context.run.scheduled_end_at,
+        context.run.scheduled_start_at
+      );
 
       return {
         closeoutLabel,
         dateLabel:
           formatOptionalDateTime(booking?.closed_at ?? booking?.client_ready_at ?? context.run.scheduled_end_at) ??
           'Recently',
+        dateValue,
         detail: `${formatTimeWindow(context.run.scheduled_start_at, context.run.scheduled_end_at)} • ${context.proofAction.proofActionCallout}`,
         id: `driver-history-${context.run.id}`,
         proofLabel: context.latestProof ? formatStatus(context.latestProof.status) : null,
@@ -1827,8 +1872,8 @@ export async function getDriverWorkspaceData(
             : ('warning' as const),
       };
     })
-    .filter((item) => matchesHistoryFilters(item, historyFilters))
-    .slice(0, 6);
+    .filter((item) => matchesHistoryFilters(item, historyFilters));
+  const recentHistory: DashboardHistoryItem[] = sortHistoryItems(filteredHistory).slice(0, 6);
 
   return {
     attentionQueue,
@@ -1856,7 +1901,7 @@ export async function getDriverWorkspaceData(
         ? `${formatPlural(approvedProofs.length, 'proof')} approved`
         : 'Proof review pending',
     badgeTone: approvedProofs.length > 0 ? 'success' : 'warning',
-    historyFilterPills: buildHistoryFilterPills(recentHistory),
+    historyFilterPills: buildHistoryFilterPills(filteredHistory),
     historyFilters,
     proofCallout:
       proofAssets.length > 0

@@ -54,7 +54,7 @@ function getNextRunAction(status: DriverRunStatus) {
 }
 
 function normalizeHistoryStatus(value: string | undefined): HistoryArchiveStatusFilter {
-  if (value === 'all' || value === 'cancelled' || value === 'client_ready' || value === 'closed') {
+  if (value === 'all' || value === 'cancelled' || value === 'client_ready' || value === 'closed' || value === 'completed') {
     return value;
   }
 
@@ -341,6 +341,7 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
                 <span className="fine">Closeout state</span>
                 <select className="input" data-testid="history-status" defaultValue={data.historyFilters.status} name="historyStatus">
                   <option value="all">All closeout states</option>
+                  <option value="completed">Completed</option>
                   <option value="client_ready">Client-ready</option>
                   <option value="closed">Closed</option>
                   <option value="cancelled">Cancelled</option>
