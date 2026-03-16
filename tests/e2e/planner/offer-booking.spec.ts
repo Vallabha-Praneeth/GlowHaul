@@ -177,6 +177,16 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
     await refreshOperatorCampaign(operatorPage, campaignName);
     await refreshPlannerNotification(page, campaignName);
     await expect(page.getByTestId('notification-center')).toContainText('Offer accepted');
+    await page.getByTestId('notification-mark-all-read').click();
+    await waitForRouteValue({
+      description: 'planner notification unread count reset',
+      intervalMs: 1_500,
+      page,
+      path: roleHomePaths.planner,
+      timeoutMs: 30_000,
+      read: async () => (await page.getByTestId('notification-unread-count').textContent()) ?? '',
+      until: (text) => text.includes('0 unread'),
+    });
 
     const operatorActiveCampaign = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await expect(operatorActiveCampaign).toBeVisible();
