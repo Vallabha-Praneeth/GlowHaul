@@ -81,6 +81,14 @@ function getNotificationTone(kind: NotificationKind, metadata: NotificationMetad
     return 'warning' as const;
   }
 
+  if (kind === 'dispatch_updated') {
+    const intent = typeof metadata?.intent === 'string' ? metadata.intent : null;
+
+    if (intent === 'cancel' || intent === 'pause' || intent === 'remove') {
+      return 'warning' as const;
+    }
+  }
+
   if (kind === 'proof_reviewed' && metadata?.status === 'rejected') {
     return 'warning' as const;
   }
@@ -409,6 +417,18 @@ export async function notifyOperatorProofUploaded(input: {
     return;
   }
 
+  if (context.run.id !== input.runId) {
+    console.error(
+      'Proof upload notification context mismatch.',
+      notificationErrorContext('notifyOperatorProofUploaded', {
+        contextRunId: context.run.id,
+        proofAssetId: input.proofAssetId,
+        runId: input.runId,
+      }),
+    );
+    return;
+  }
+
   const recipientIds = await getOrganizationRoleRecipientIds(context.booking.operator_organization_id, 'operator');
   await insertNotifications(
     buildRecords(recipientIds, {
@@ -478,6 +498,13 @@ export async function notifyDriversDispatchUpdated(input: {
   const notifications = recipientIds.map((recipientId) => {
     const isRemovedDriver = input.previousDriverId === recipientId && input.targetDriverId !== recipientId;
     const isAssignedDriver = input.targetDriverId === recipientId;
+    const dispatchIntent =
+      input.intent
+      ?? (isRemovedDriver
+        ? 'remove'
+        : isAssignedDriver && input.previousDriverId !== input.targetDriverId
+          ? 'assign'
+          : 'update');
     let title = 'Dispatch updated';
     let body = `${booking.campaign_name} dispatch details changed. Open the driver workspace for the new plan.`;
 
@@ -504,6 +531,9 @@ export async function notifyDriversDispatchUpdated(input: {
       booking_id: booking.id,
       href: '/driver',
       kind: 'dispatch_updated' as const,
+      metadata: {
+        intent: dispatchIntent,
+      },
       recipient_profile_id: recipientId,
       title,
     } satisfies NotificationInsert;
