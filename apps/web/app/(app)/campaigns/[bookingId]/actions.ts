@@ -46,6 +46,21 @@ function getFallbackRecapPath(formData: FormData) {
   return '/planner/search';
 }
 
+async function emitNotificationSafely(
+  description: string,
+  details: Record<string, string>,
+  emit: () => Promise<void>,
+) {
+  try {
+    await emit();
+  } catch (error) {
+    console.error(`Failed to emit ${description}.`, {
+      ...details,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export async function updateCampaignCloseoutAction(formData: FormData) {
   const fallbackPath = getFallbackRecapPath(formData);
   const parsed = campaignCloseoutSchema.safeParse({
@@ -71,11 +86,18 @@ export async function updateCampaignCloseoutAction(formData: FormData) {
       throw new Error(error.message);
     }
 
-    await notifyPlannerCampaignCloseout({
-      actorProfileId: profile.id,
-      bookingId: parsed.data.bookingId,
-      kind: parsed.data.intent === 'mark_client_ready' ? 'campaign_client_ready' : 'campaign_closed',
-    });
+    await emitNotificationSafely(
+      'campaign closeout notification',
+      {
+        bookingId: parsed.data.bookingId,
+        intent: parsed.data.intent,
+      },
+      () => notifyPlannerCampaignCloseout({
+        actorProfileId: profile.id,
+        bookingId: parsed.data.bookingId,
+        kind: parsed.data.intent === 'mark_client_ready' ? 'campaign_client_ready' : 'campaign_closed',
+      }),
+    );
   } catch (error) {
     rethrowRedirectError(error);
     redirect(

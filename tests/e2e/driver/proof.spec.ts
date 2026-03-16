@@ -216,7 +216,7 @@ test('driver can report an issue and resume after operator recovery', async ({ b
     await gotoRoleHome();
     const getRunCard = () => page.locator('div.surface').filter({ hasText: campaignName }).first();
     await refreshDriverRunCardUntil(page, campaignName, 'En Route', 'goto');
-    await refreshDriverNotification(page, 'New assignment');
+    await refreshDriverNotification(page, campaignName);
     await expect(page.getByTestId('notification-center')).toContainText(campaignName);
     await expect(getRunCard().getByText('En Route', { exact: true }).first()).toBeVisible();
     await expect(getRunCard().getByRole('link', { name: 'Open recap' })).toBeVisible();

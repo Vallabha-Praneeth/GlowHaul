@@ -229,7 +229,7 @@ async function insertNotifications(records: NotificationInsert[]) {
   const deduped = Array.from(
     new Map(
       records.map((record) => [
-        `${record.recipient_profile_id}:${record.kind}:${record.href}:${record.title}:${record.body}`,
+        `${record.recipient_profile_id}:${record.kind}:${record.href}`,
         record,
       ])
     ).values()
