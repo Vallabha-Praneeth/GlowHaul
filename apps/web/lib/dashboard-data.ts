@@ -1110,6 +1110,13 @@ export async function getOperatorDashboardData(
   ].slice(0, 6);
 
   const recentHistory: DashboardHistoryItem[] = activeBookingContexts
+    .filter(
+      (context) =>
+        Boolean(context.booking.closed_at) ||
+        Boolean(context.booking.client_ready_at) ||
+        context.booking.status === 'cancelled' ||
+        context.latestProof?.status === 'rejected'
+    )
     .map((context) => {
       const closeoutLabel = getHistoryCloseoutLabel(context.booking);
 
@@ -1138,7 +1145,6 @@ export async function getOperatorDashboardData(
             : ('warning' as const),
       };
     })
-    .filter((item) => item.closeoutLabel !== 'Completed' || item.proofStatus === 'rejected')
     .filter((item) => matchesHistoryFilters(item, historyFilters))
     .slice(0, 6);
 

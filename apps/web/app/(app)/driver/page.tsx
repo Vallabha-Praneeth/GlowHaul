@@ -161,7 +161,7 @@ export default async function DriverPage({ searchParams }: DriverPageProps) {
         <div className="card-grid" style={{ marginTop: 24 }}>
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Assigned runs</h2>
-            <div className="stack">
+            <div className="stack" data-testid="driver-run-list">
               {data.assignedRuns.length > 0 ? data.assignedRuns.map((run) => {
                 const nextAction = getNextRunAction(run.runStatus);
 

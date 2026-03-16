@@ -88,7 +88,11 @@ async function refreshDriverRunCardUntil(
     refreshMode,
     timeoutMs,
     read: async () => {
-      const card = page.locator('div.surface').filter({ hasText: campaignName }).first();
+      const card = page
+        .getByTestId('driver-run-list')
+        .locator('div.surface')
+        .filter({ hasText: campaignName })
+        .first();
       if (await card.count() === 0) {
         return '';
       }
@@ -199,7 +203,11 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
     });
 
     await driverPage.goto(roleHomePaths.driver);
-    const driverRunCard = driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
+    const driverRunCard = driverPage
+      .getByTestId('driver-run-list')
+      .locator('div.surface')
+      .filter({ hasText: campaignName })
+      .first();
     await expect(driverRunCard).toContainText('En Route', { timeout: 15_000 });
 
     await operatorPage.goto(roleHomePaths.operator);
@@ -215,7 +223,11 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
       refreshMode: 'goto',
       timeoutMs: 60_000,
       read: async () => {
-        const card = driverPage.locator('div.surface').filter({ hasText: campaignName }).first();
+        const card = driverPage
+          .getByTestId('driver-run-list')
+          .locator('div.surface')
+          .filter({ hasText: campaignName })
+          .first();
         if (await card.count() === 0) {
           return '';
         }

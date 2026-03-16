@@ -150,31 +150,37 @@ export default async function CampaignRecapPage({ params, searchParams }: Campai
 
           {recap.canManageCloseout ? (
             <div className="stack" style={{ marginTop: 18 }}>
-              <form action={updateCampaignCloseoutAction} className="stack">
-                <input name="bookingId" type="hidden" value={bookingId} />
-                <label className="form-field">
-                  <span className="fine">Closeout note</span>
-                  <textarea
-                    className="input"
-                    defaultValue={recap.closeoutNote ?? ''}
-                    name="note"
-                    placeholder="Optional note to carry into client-ready and public recap views"
-                    rows={4}
-                  />
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                  {recap.canMarkClientReady ? (
-                    <button className="button-secondary" data-testid="campaign-recap-mark-client-ready" name="intent" type="submit" value="mark_client_ready">
-                      Mark client-ready
-                    </button>
-                  ) : null}
-                  {recap.canMarkClosed ? (
-                    <button className="button-secondary" data-testid="campaign-recap-mark-closed" name="intent" type="submit" value="mark_closed">
-                      Mark closed
-                    </button>
-                  ) : null}
+              {recap.canMarkClientReady || recap.canMarkClosed ? (
+                <form action={updateCampaignCloseoutAction} className="stack">
+                  <input name="bookingId" type="hidden" value={bookingId} />
+                  <label className="form-field">
+                    <span className="fine">Closeout note</span>
+                    <textarea
+                      className="input"
+                      defaultValue={recap.closeoutNote ?? ''}
+                      name="note"
+                      placeholder="Optional note to carry into client-ready and public recap views"
+                      rows={4}
+                    />
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    {recap.canMarkClientReady ? (
+                      <button className="button-secondary" data-testid="campaign-recap-mark-client-ready" name="intent" type="submit" value="mark_client_ready">
+                        Mark client-ready
+                      </button>
+                    ) : null}
+                    {recap.canMarkClosed ? (
+                      <button className="button-secondary" data-testid="campaign-recap-mark-closed" name="intent" type="submit" value="mark_closed">
+                        Mark closed
+                      </button>
+                    ) : null}
+                  </div>
+                </form>
+              ) : (
+                <div className="fine">
+                  Closeout transitions are already complete for this campaign. Review the public link state below if you need to refresh or revoke sharing.
                 </div>
-              </form>
+              )}
 
               <div className="pill" style={{ alignItems: 'flex-start', display: 'grid' }}>
                 <span className="fine">Public recap link</span>

@@ -550,7 +550,10 @@ export async function getCampaignRecapData(bookingId: string): Promise<CampaignR
   }
 
   const latestRun = runs[runs.length - 1] ?? null;
-  const latestProof = proofs[0] ?? null;
+  const latestProof =
+    latestRun
+      ? proofs.find((proof) => proof.run_id === latestRun.id) ?? null
+      : null;
   const latestRunHasApprovedProof = latestRun
     ? proofs.some((proof) => proof.run_id === latestRun.id && proof.status === 'approved')
     : false;
@@ -657,7 +660,10 @@ export async function getPublicCampaignRecapData(shareToken: string): Promise<Pu
 
   const publicProofs = proofs.filter((proof) => proof.status === 'approved');
   const latestRun = runs[runs.length - 1] ?? null;
-  const latestProof = publicProofs[0] ?? null;
+  const latestProof =
+    latestRun
+      ? publicProofs.find((proof) => proof.run_id === latestRun.id) ?? null
+      : null;
   const anonymizedDriverMap = buildAnonymizedDriverMap(driverMap);
   const routeSummary = slot
     ? `${slot.region} • ${formatTimeWindow(slot.start_at, slot.end_at)} • ${formatCurrency(slot.rate_cents)}`
