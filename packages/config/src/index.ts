@@ -10,6 +10,11 @@ const optionalHostSchema = z
   .optional()
   .transform((value) => (value ? value : undefined));
 
+const optionalEmailSchema = z
+  .union([z.string().email(), z.literal('')])
+  .optional()
+  .transform((value) => (value ? value : undefined));
+
 export const publicEnvSchema = z.object({
   NEXT_PUBLIC_APP_NAME: z.string().default('GlowHaul'),
   NEXT_PUBLIC_SITE_URL: optionalUrlSchema,
@@ -22,6 +27,13 @@ export const publicEnvSchema = z.object({
 
 export const serverEnvSchema = publicEnvSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().default('replace_me'),
+  EMAIL_NOTIFICATIONS_ENABLED: z
+    .union([z.boolean(), z.string()])
+    .transform((value) => value === true || value === 'true')
+    .default(false),
+  RESEND_API_KEY: z.string().optional(),
+  NOTIFICATION_EMAIL_FROM: optionalEmailSchema,
+  NOTIFICATION_EMAIL_REPLY_TO: optionalEmailSchema,
   AUTH_PRIMARY_METHOD: z.enum(['magic-link', 'phone-otp', 'hybrid']).default('magic-link'),
   AUTH_PHONE_OTP_ENABLED: z
     .union([z.boolean(), z.string()])
@@ -52,6 +64,12 @@ export function hasSupabaseCredentials(env: Pick<ServerEnv, 'NEXT_PUBLIC_SUPABAS
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== 'replace_me'
   );
+}
+
+export function hasNotificationEmailConfig(
+  env: Pick<ServerEnv, 'EMAIL_NOTIFICATIONS_ENABLED' | 'NOTIFICATION_EMAIL_FROM' | 'RESEND_API_KEY'>
+) {
+  return Boolean(env.EMAIL_NOTIFICATIONS_ENABLED && env.RESEND_API_KEY && env.NOTIFICATION_EMAIL_FROM);
 }
 
 const LOCAL_HOST_PATTERN =

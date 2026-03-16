@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import type { NotificationCenterData } from '../lib/notifications';
 
 type NotificationCenterCardProps = {
@@ -37,10 +36,10 @@ export function NotificationCenterCard({ data, markAllReadAction }: Notification
 
       <div className="stack" style={{ marginTop: 16 }}>
         {data.items.length > 0 ? data.items.map((item) => (
-          <Link
+          <a
             className="pill notification-pill"
             data-testid={`notification-item-${item.id}`}
-            href={item.href}
+            href={item.actionHref}
             key={item.id}
             style={{ alignItems: 'flex-start', display: 'grid' }}
           >
@@ -53,7 +52,7 @@ export function NotificationCenterCard({ data, markAllReadAction }: Notification
               <span>{item.createdAtLabel}</span>
               {item.isUnread ? <span className="badge warning">New</span> : null}
             </div>
-          </Link>
+          </a>
         )) : (
           <div className="fine">No workflow notifications yet.</div>
         )}

@@ -177,15 +177,28 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
     await refreshOperatorCampaign(operatorPage, campaignName);
     await refreshPlannerNotification(page, campaignName);
     await expect(page.getByTestId('notification-center')).toContainText('Offer accepted');
-    await page.getByTestId('notification-mark-all-read').click();
+    const unreadCountBeforeClick = Number.parseInt(
+      ((await page.getByTestId('notification-unread-count').textContent()) ?? '0').split(' ')[0] ?? '0',
+      10,
+    );
+    await page
+      .getByTestId('notification-center')
+      .locator('a.notification-pill')
+      .filter({ hasText: campaignName })
+      .first()
+      .click();
     await waitForRouteValue({
-      description: 'planner notification unread count reset',
+      description: 'planner notification read on click',
       intervalMs: 1_500,
       page,
       path: roleHomePaths.planner,
       timeoutMs: 30_000,
-      read: async () => (await page.getByTestId('notification-unread-count').textContent()) ?? '',
-      until: (text) => text.includes('0 unread'),
+      read: async () =>
+        Number.parseInt(
+          ((await page.getByTestId('notification-unread-count').textContent()) ?? '0').split(' ')[0] ?? '0',
+          10,
+        ),
+      until: (count) => count === Math.max(0, unreadCountBeforeClick - 1),
     });
 
     const operatorActiveCampaign = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
@@ -320,6 +333,17 @@ test('planner can close out a completed campaign and publish a public recap', as
       until: (text) => text.includes('Client-ready'),
     });
     await expect(page.getByTestId('campaign-recap-summary')).toContainText(closeoutNote);
+    await waitForNotification(page, recapPath, 'Campaign client-ready');
+    await page.getByTestId('notification-mark-all-read').click();
+    await waitForRouteValue({
+      description: 'planner recap notification unread count reset',
+      intervalMs: 1_500,
+      page,
+      path: recapPath,
+      timeoutMs: 30_000,
+      read: async () => (await page.getByTestId('notification-unread-count').textContent()) ?? '',
+      until: (text) => text.includes('0 unread'),
+    });
 
     await submitActionButtonAndAssertRedirect(
       page,
