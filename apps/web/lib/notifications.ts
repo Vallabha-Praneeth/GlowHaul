@@ -44,6 +44,17 @@ type ProofNotificationContext = RunNotificationContext & {
   proof: Pick<ProofAssetRow, 'driver_id' | 'id' | 'run_id' | 'status' | 'storage_path'>;
 };
 
+function requireAdminClient(context: string, details: NotificationMetadata = {}) {
+  const admin = createAdminSupabaseClient();
+
+  if (!admin) {
+    console.error('Notification admin client is unavailable.', notificationErrorContext(context, details));
+    return null;
+  }
+
+  return admin;
+}
+
 function getKindLabel(kind: NotificationKind) {
   switch (kind) {
     case 'offer_accepted':
@@ -88,7 +99,10 @@ async function getOrganizationRoleRecipientIds(
   organizationId: string,
   role: AppRole
 ) {
-  const admin = createAdminSupabaseClient();
+  const admin = requireAdminClient('getOrganizationRoleRecipientIds', {
+    organizationId,
+    role,
+  });
 
   if (!admin) {
     return [];
@@ -113,7 +127,7 @@ async function getOrganizationRoleRecipientIds(
 }
 
 async function getBookingNotificationContext(bookingId: string) {
-  const admin = createAdminSupabaseClient();
+  const admin = requireAdminClient('getBookingNotificationContext', { bookingId });
 
   if (!admin) {
     return null;
@@ -137,7 +151,7 @@ async function getBookingNotificationContext(bookingId: string) {
 }
 
 async function getRunNotificationContext(runId: string): Promise<RunNotificationContext | null> {
-  const admin = createAdminSupabaseClient();
+  const admin = requireAdminClient('getRunNotificationContext', { runId });
 
   if (!admin) {
     return null;
@@ -170,7 +184,7 @@ async function getRunNotificationContext(runId: string): Promise<RunNotification
 }
 
 async function getProofNotificationContext(proofAssetId: string): Promise<ProofNotificationContext | null> {
-  const admin = createAdminSupabaseClient();
+  const admin = requireAdminClient('getProofNotificationContext', { proofAssetId });
 
   if (!admin) {
     return null;
@@ -203,9 +217,12 @@ async function getProofNotificationContext(proofAssetId: string): Promise<ProofN
 }
 
 async function insertNotifications(records: NotificationInsert[]) {
-  const admin = createAdminSupabaseClient();
+  if (records.length === 0) {
+    return;
+  }
+  const admin = requireAdminClient('insertNotifications', { count: records.length });
 
-  if (!admin || records.length === 0) {
+  if (!admin) {
     return;
   }
 
@@ -240,17 +257,27 @@ function buildRecords(
 
 export async function getNotificationCenterData(profileId: string): Promise<NotificationCenterData> {
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('id, title, body, href, kind, read_at, created_at, metadata')
-    .eq('recipient_profile_id', profileId)
-    .order('created_at', { ascending: false })
-    .limit(6);
+  const [
+    { data, error },
+    { count: unreadCount, error: unreadCountError },
+  ] = await Promise.all([
+    supabase
+      .from('notifications')
+      .select('id, title, body, href, kind, read_at, created_at, metadata')
+      .eq('recipient_profile_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(6),
+    supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_profile_id', profileId)
+      .is('read_at', null),
+  ]);
 
-  if (error) {
+  if (error || unreadCountError) {
     console.error('Failed to load notification center data.', notificationErrorContext('getNotificationCenterData', {
       profileId,
-      error: error.message,
+      error: error?.message ?? unreadCountError?.message ?? 'unknown error',
     }));
     return {
       items: [],
@@ -261,8 +288,6 @@ export async function getNotificationCenterData(profileId: string): Promise<Noti
   const notifications = (data ?? []) as Array<
     Pick<NotificationRow, 'body' | 'created_at' | 'href' | 'id' | 'kind' | 'metadata' | 'read_at' | 'title'>
   >;
-  const unreadCount = notifications.filter((item) => item.read_at === null).length;
-
   return {
     items: notifications.map((item) => ({
       body: item.body,
@@ -274,7 +299,7 @@ export async function getNotificationCenterData(profileId: string): Promise<Noti
       title: item.title,
       tone: getNotificationTone(item.kind, item.metadata as NotificationMetadata | null),
     })),
-    unreadCount,
+    unreadCount: unreadCount ?? 0,
   };
 }
 
@@ -283,7 +308,10 @@ export async function notifyPlannerOfferAccepted(input: {
   campaignName: string;
   offerId: string;
 }) {
-  const admin = createAdminSupabaseClient();
+  const admin = requireAdminClient('notifyPlannerOfferAccepted', {
+    actorProfileId: input.actorProfileId,
+    offerId: input.offerId,
+  });
 
   if (!admin) {
     return;
@@ -411,8 +439,8 @@ export async function notifyDriverProofReviewed(input: {
       actor_profile_id: input.actorProfileId,
       body:
         context.proof.status === 'approved'
-          ? `${context.booking.campaign_name} proof was approved and is ready for planner/share workflows.`
-          : `${context.booking.campaign_name} proof was rejected. Review the operator note and upload a replacement.`,
+          ? `${context.booking.campaign_name} proof ${getFileName(context.proof.storage_path)} was approved and is ready for planner/share workflows.`
+          : `${context.booking.campaign_name} proof ${getFileName(context.proof.storage_path)} was rejected. Review the operator note and upload a replacement.`,
       booking_id: context.booking.id,
       href: '/driver',
       kind: 'proof_reviewed',

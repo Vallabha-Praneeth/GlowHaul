@@ -392,13 +392,18 @@ export async function updateCampaignExecution(formData: FormData) {
       throw new Error('Your operator account is missing an organization.');
     }
 
-    const { data: currentRunData } = await supabase
+    const { data: currentRunData, error: currentRunError } = await supabase
       .from('runs')
       .select('driver_id')
       .eq('booking_id', parsed.data.bookingId)
       .order('scheduled_start_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (currentRunError) {
+      throw new Error(currentRunError.message);
+    }
+
     const currentRunResult = currentRunData as Pick<Database['public']['Tables']['runs']['Row'], 'driver_id'> | null;
     const currentDriverId = currentRunResult?.driver_id ?? null;
     const startAt = normalizeDateTimeInput(parsed.data.startAt);

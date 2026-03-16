@@ -30,7 +30,10 @@ async function requireRecapManager() {
     throw new Error('Only operators or planners can manage campaign closeout.');
   }
 
-  return createServerSupabaseClient();
+  return {
+    profile,
+    supabase: await createServerSupabaseClient(),
+  };
 }
 
 function getFallbackRecapPath(formData: FormData) {
@@ -56,8 +59,7 @@ export async function updateCampaignCloseoutAction(formData: FormData) {
   }
 
   try {
-    const supabase = await requireRecapManager();
-    const profile = await requireAuthenticatedProfile();
+    const { profile, supabase } = await requireRecapManager();
     const rpcArgs: Database['public']['Functions']['update_campaign_closeout']['Args'] = {
       target_booking_id: parsed.data.bookingId,
       target_intent: parsed.data.intent,
@@ -110,7 +112,7 @@ export async function manageCampaignPublicShareAction(formData: FormData) {
   }
 
   try {
-    const supabase = await requireRecapManager();
+    const { supabase } = await requireRecapManager();
 
     if (parsed.data.intent === 'create') {
       const rpcArgs: Database['public']['Functions']['create_or_refresh_campaign_recap_share']['Args'] = {

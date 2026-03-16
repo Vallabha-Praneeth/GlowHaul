@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForNotification, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'operator', storageState: 'tests/e2e/.auth/operator.json' });
@@ -64,24 +64,7 @@ async function refreshOperatorCampaign(page: import('@playwright/test').Page, ca
 }
 
 async function refreshOperatorNotification(page: import('@playwright/test').Page, expectedText: string) {
-  await waitForRouteValue({
-    description: `operator notification ${expectedText}`,
-    intervalMs: 2_000,
-    page,
-    path: roleHomePaths.operator,
-    refreshMode: 'goto',
-    timeoutMs: 60_000,
-    read: async () => {
-      const notificationCenter = page.getByTestId('notification-center');
-
-      if (await notificationCenter.count() === 0) {
-        return '';
-      }
-
-      return (await notificationCenter.textContent()) ?? '';
-    },
-    until: (text) => text.includes(expectedText),
-  });
+  await waitForNotification(page, roleHomePaths.operator, expectedText, 60_000);
 }
 
 async function createSlot(page: import('@playwright/test').Page, note: string, rate = '3100') {

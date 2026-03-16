@@ -91,3 +91,29 @@ export async function waitForRouteValue<T>({
 
   throw new Error(`Timed out waiting for ${description}. Last observed value: ${JSON.stringify(lastValue)}`);
 }
+
+export async function waitForNotification(
+  page: Page,
+  path: string,
+  expectedText: string,
+  timeoutMs = 60_000,
+) {
+  await waitForRouteValue({
+    description: `notification ${expectedText}`,
+    intervalMs: 2_000,
+    page,
+    path,
+    refreshMode: 'goto',
+    timeoutMs,
+    read: async () => {
+      const notificationCenter = page.getByTestId('notification-center');
+
+      if (await notificationCenter.count() === 0) {
+        return '';
+      }
+
+      return (await notificationCenter.textContent()) ?? '';
+    },
+    until: (text) => text.includes(expectedText),
+  });
+}

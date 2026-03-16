@@ -16,7 +16,18 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   const { profile } = await getCurrentAuth();
-  const notificationCenter = profile ? await getNotificationCenterData(profile.id) : null;
+  let notificationCenter = null;
+
+  if (profile) {
+    try {
+      notificationCenter = await getNotificationCenterData(profile.id);
+    } catch (error) {
+      console.error('Failed to load notification center preview.', {
+        profileId: profile.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   const nav = profile
     ? [{ href: getDefaultHomePath(profile.role), label: roleLabels[profile.role] }]
     : [{ href: '/login', label: 'Login' }];

@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures';
-import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForRouteValue } from '../helpers';
+import { requestSubmit, setTextControlValue, submitActionButtonAndAssertRedirect, waitForNotification, waitForRouteValue } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
 
 test.use({ role: 'driver', storageState: 'tests/e2e/.auth/driver.json' });
@@ -41,24 +41,7 @@ async function refreshOperatorNotification(
   expectedText: string,
   timeout = 60_000,
 ) {
-  await waitForRouteValue({
-    description: `operator notification ${expectedText}`,
-    intervalMs: 2_000,
-    page,
-    path: roleHomePaths.operator,
-    refreshMode: 'goto',
-    timeoutMs: timeout,
-    read: async () => {
-      const notificationCenter = page.getByTestId('notification-center');
-
-      if (await notificationCenter.count() === 0) {
-        return '';
-      }
-
-      return (await notificationCenter.textContent()) ?? '';
-    },
-    until: (text) => text.includes(expectedText),
-  });
+  await waitForNotification(page, roleHomePaths.operator, expectedText, timeout);
 }
 
 async function refreshDriverRunCardUntil(
@@ -93,29 +76,13 @@ async function refreshDriverNotification(
   expectedText: string,
   timeout = 60_000,
 ) {
-  await waitForRouteValue({
-    description: `driver notification ${expectedText}`,
-    intervalMs: 2_000,
-    page,
-    path: roleHomePaths.driver,
-    refreshMode: 'goto',
-    timeoutMs: timeout,
-    read: async () => {
-      const notificationCenter = page.getByTestId('notification-center');
-
-      if (await notificationCenter.count() === 0) {
-        return '';
-      }
-
-      return (await notificationCenter.textContent()) ?? '';
-    },
-    until: (text) => text.includes(expectedText),
-  });
+  await waitForNotification(page, roleHomePaths.driver, expectedText, timeout);
 }
 
 test('driver can upload proof into Supabase storage and receive operator review live', async ({ browser, page, gotoRoleHome }) => {
   test.slow();
   const fileName = `proof-${Date.now()}.jpg`;
+  const proofSignal = fileName;
   const reviewNote = `Approved for client share ${Date.now()}`;
   const operatorContext = await browser.newContext({ storageState: authFiles.operator });
   const operatorPage = await operatorContext.newPage();
@@ -164,8 +131,8 @@ test('driver can upload proof into Supabase storage and receive operator review 
 
       return (await driverProofCard.textContent()) ?? '';
     }, { timeout: 30_000 }).toContain('Approved');
-    await refreshDriverNotification(page, 'Proof approved', 30_000);
-    await expect(page.getByTestId('notification-center')).toContainText('Dallas Product Launch');
+    await refreshDriverNotification(page, proofSignal, 30_000);
+    await expect(page.getByTestId('notification-center')).toContainText(proofSignal);
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText(reviewNote, { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first()).toContainText('Approved proof is ready for planner share.', { timeout: 30_000 });
     await expect(page.locator('div.pill').filter({ hasText: fileName }).first().getByTestId(/driver-proof-open-file-/)).toBeVisible();

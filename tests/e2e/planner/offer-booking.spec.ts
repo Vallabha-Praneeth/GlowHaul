@@ -3,6 +3,7 @@ import {
   requestSubmit,
   setTextControlValue,
   submitActionButtonAndAssertRedirect,
+  waitForNotification,
   waitForRouteValue,
 } from '../helpers';
 import { authFiles, roleHomePaths } from '../fixtures';
@@ -103,24 +104,7 @@ async function refreshDriverRunCardUntil(
 }
 
 async function refreshPlannerNotification(page: import('@playwright/test').Page, expectedText: string) {
-  await waitForRouteValue({
-    description: `planner notification ${expectedText}`,
-    intervalMs: 2_000,
-    page,
-    path: roleHomePaths.planner,
-    refreshMode: 'goto',
-    timeoutMs: 60_000,
-    read: async () => {
-      const notificationCenter = page.getByTestId('notification-center');
-
-      if (await notificationCenter.count() === 0) {
-        return '';
-      }
-
-      return (await notificationCenter.textContent()) ?? '';
-    },
-    until: (text) => text.includes(expectedText),
-  });
+  await waitForNotification(page, roleHomePaths.planner, expectedText, 60_000);
 }
 
 test('planner marketplace exposes free-first map strategy and filter controls', async ({ browser, page, gotoRoleHome }) => {

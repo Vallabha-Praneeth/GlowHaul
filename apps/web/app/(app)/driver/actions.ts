@@ -37,6 +37,21 @@ function isRetryableStorageError(message: string) {
     || normalized.includes('error sending request');
 }
 
+async function emitNotificationSafely(
+  description: string,
+  details: Record<string, string>,
+  emit: () => Promise<void>,
+) {
+  try {
+    await emit();
+  } catch (error) {
+    console.error(`Failed to emit ${description}.`, {
+      ...details,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export async function uploadDriverProof(formData: FormData) {
   const runId = formData.get('runId');
   const fileValue = formData.get('proofFile');
@@ -134,11 +149,18 @@ export async function uploadDriverProof(formData: FormData) {
     const insertedProof = insertedProofResult as Pick<Database['public']['Tables']['proof_assets']['Row'], 'id'> | null;
 
     if (insertedProof) {
-      await notifyOperatorProofUploaded({
-        actorProfileId: profile.id,
-        proofAssetId: insertedProof.id,
-        runId,
-      });
+      await emitNotificationSafely(
+        'proof upload notification',
+        {
+          proofAssetId: insertedProof.id,
+          runId,
+        },
+        () => notifyOperatorProofUploaded({
+          actorProfileId: profile.id,
+          proofAssetId: insertedProof.id,
+          runId,
+        }),
+      );
     }
   } catch (error) {
     rethrowRedirectError(error);
@@ -238,11 +260,17 @@ export async function updateDriverRunStatus(formData: FormData) {
     }
 
     if (parsed.data.nextStatus === 'issue') {
-      await notifyOperatorRunIssueReported({
-        actorProfileId: profile.id,
-        issueNote: issueNote ?? null,
-        runId: parsed.data.runId,
-      });
+      await emitNotificationSafely(
+        'run issue notification',
+        {
+          runId: parsed.data.runId,
+        },
+        () => notifyOperatorRunIssueReported({
+          actorProfileId: profile.id,
+          issueNote: issueNote ?? null,
+          runId: parsed.data.runId,
+        }),
+      );
     }
   } catch (error) {
     rethrowRedirectError(error);
