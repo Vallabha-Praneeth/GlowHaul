@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { campaignCloseoutSchema, campaignPublicShareSchema, recordIdSchema } from '@glowhaul/core';
 import type { Database } from '../../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../../lib/auth';
+import { notifyPlannerCampaignCloseout } from '../../../../lib/notifications';
 import { rethrowRedirectError } from '../../../../lib/redirect-errors';
 import { createServerSupabaseClient } from '../../../../lib/supabase/server';
 
@@ -56,6 +57,7 @@ export async function updateCampaignCloseoutAction(formData: FormData) {
 
   try {
     const supabase = await requireRecapManager();
+    const profile = await requireAuthenticatedProfile();
     const rpcArgs: Database['public']['Functions']['update_campaign_closeout']['Args'] = {
       target_booking_id: parsed.data.bookingId,
       target_intent: parsed.data.intent,
@@ -66,6 +68,12 @@ export async function updateCampaignCloseoutAction(formData: FormData) {
     if (error) {
       throw new Error(error.message);
     }
+
+    await notifyPlannerCampaignCloseout({
+      actorProfileId: profile.id,
+      bookingId: parsed.data.bookingId,
+      kind: parsed.data.intent === 'mark_client_ready' ? 'campaign_client_ready' : 'campaign_closed',
+    });
   } catch (error) {
     rethrowRedirectError(error);
     redirect(

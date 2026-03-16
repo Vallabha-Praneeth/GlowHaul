@@ -98,6 +98,12 @@ a {
   color: hsl(var(--muted-foreground));
 }
 
+.notification-pill {
+  width: 100%;
+  border-radius: 20px;
+  text-align: left;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { NotificationCenterCard } from '../../components/notification-center-card';
 import { getCurrentAuth, getDefaultHomePath, type AppRole } from '../../lib/auth';
+import { getNotificationCenterData } from '../../lib/notifications';
 import { signOutUser } from '../(auth)/login/actions';
 
 const roleLabels: Record<AppRole, string> = {
@@ -14,6 +16,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }>) {
   const { profile } = await getCurrentAuth();
+  const notificationCenter = profile ? await getNotificationCenterData(profile.id) : null;
   const nav = profile
     ? [{ href: getDefaultHomePath(profile.role), label: roleLabels[profile.role] }]
     : [{ href: '/login', label: 'Login' }];
@@ -52,6 +55,8 @@ export default async function AppLayout({
               </div>
             </div>
           ) : null}
+
+          {notificationCenter ? <NotificationCenterCard data={notificationCenter} /> : null}
 
           <div className="card">
             <div className="stack" style={{ gap: 8 }}>

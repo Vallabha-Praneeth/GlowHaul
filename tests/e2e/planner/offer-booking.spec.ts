@@ -102,6 +102,27 @@ async function refreshDriverRunCardUntil(
   });
 }
 
+async function refreshPlannerNotification(page: import('@playwright/test').Page, expectedText: string) {
+  await waitForRouteValue({
+    description: `planner notification ${expectedText}`,
+    intervalMs: 2_000,
+    page,
+    path: roleHomePaths.planner,
+    refreshMode: 'goto',
+    timeoutMs: 60_000,
+    read: async () => {
+      const notificationCenter = page.getByTestId('notification-center');
+
+      if (await notificationCenter.count() === 0) {
+        return '';
+      }
+
+      return (await notificationCenter.textContent()) ?? '';
+    },
+    until: (text) => text.includes(expectedText),
+  });
+}
+
 test('planner marketplace exposes free-first map strategy and filter controls', async ({ browser, page, gotoRoleHome }) => {
   test.setTimeout(180_000);
   const slotNote = `Planner filter slot ${Date.now()}`;
@@ -170,6 +191,8 @@ test('planner offer reflects operator dispatch and execution state', async ({ br
     await setTextControlValue(incomingOfferCard.getByLabel('Campaign name'), campaignName);
     await incomingOfferCard.getByRole('button', { name: 'Accept and book slot' }).click();
     await refreshOperatorCampaign(operatorPage, campaignName);
+    await refreshPlannerNotification(page, campaignName);
+    await expect(page.getByTestId('notification-center')).toContainText('Offer accepted');
 
     const operatorActiveCampaign = operatorPage.locator('form.surface').filter({ hasText: campaignName }).first();
     await expect(operatorActiveCampaign).toBeVisible();

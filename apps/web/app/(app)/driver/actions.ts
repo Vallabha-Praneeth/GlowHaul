@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { recordIdSchema } from '@glowhaul/core';
 import type { Database } from '../../../../../packages/supabase/types/database';
 import { requireAuthenticatedProfile } from '../../../lib/auth';
+import { notifyOperatorProofUploaded, notifyOperatorRunIssueReported } from '../../../lib/notifications';
 import { rethrowRedirectError } from '../../../lib/redirect-errors';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 
@@ -120,6 +121,25 @@ export async function uploadDriverProof(formData: FormData) {
 
       redirect('/driver?error=' + encodeMessage(insertError.message));
     }
+
+    const { data: insertedProofResult } = await supabase
+      .from('proof_assets')
+      .select('id')
+      .eq('run_id', runId)
+      .eq('driver_id', profile.id)
+      .eq('storage_path', uploadedStoragePath)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const insertedProof = insertedProofResult as Pick<Database['public']['Tables']['proof_assets']['Row'], 'id'> | null;
+
+    if (insertedProof) {
+      await notifyOperatorProofUploaded({
+        actorProfileId: profile.id,
+        proofAssetId: insertedProof.id,
+        runId,
+      });
+    }
   } catch (error) {
     rethrowRedirectError(error);
     redirect('/driver?error=' + encodeMessage(error instanceof Error ? error.message : 'Unable to upload proof.'));
@@ -215,6 +235,14 @@ export async function updateDriverRunStatus(formData: FormData) {
 
     if (error) {
       throw new Error(error.message);
+    }
+
+    if (parsed.data.nextStatus === 'issue') {
+      await notifyOperatorRunIssueReported({
+        actorProfileId: profile.id,
+        issueNote: issueNote ?? null,
+        runId: parsed.data.runId,
+      });
     }
   } catch (error) {
     rethrowRedirectError(error);

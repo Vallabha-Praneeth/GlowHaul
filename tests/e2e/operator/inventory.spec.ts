@@ -63,6 +63,27 @@ async function refreshOperatorCampaign(page: import('@playwright/test').Page, ca
   });
 }
 
+async function refreshOperatorNotification(page: import('@playwright/test').Page, expectedText: string) {
+  await waitForRouteValue({
+    description: `operator notification ${expectedText}`,
+    intervalMs: 2_000,
+    page,
+    path: roleHomePaths.operator,
+    refreshMode: 'goto',
+    timeoutMs: 60_000,
+    read: async () => {
+      const notificationCenter = page.getByTestId('notification-center');
+
+      if (await notificationCenter.count() === 0) {
+        return '';
+      }
+
+      return (await notificationCenter.textContent()) ?? '';
+    },
+    until: (text) => text.includes(expectedText),
+  });
+}
+
 async function createSlot(page: import('@playwright/test').Page, note: string, rate = '3100') {
   const createForm = page.getByTestId('operator-create-slot-form');
   await createForm.getByLabel('Region').selectOption('Houston');
@@ -237,6 +258,7 @@ test('operator can reject offers, progress campaigns, and review proof', async (
     });
 
     await page.goto(roleHomePaths.operator);
+    await refreshOperatorNotification(page, proofFileName);
     const proofCard = page.locator('form.surface').filter({ hasText: proofFileName }).first();
     await expect(proofCard.getByTestId(/operator-proof-view-cta-/)).toBeVisible();
     await proofCard.getByLabel('Review note').fill(proofReviewNote);
