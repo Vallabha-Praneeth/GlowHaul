@@ -2,6 +2,7 @@ import 'server-only';
 
 import { env, isNotificationEmailConfigured } from './env';
 import { getAppOrigin } from './site-url';
+import { createAdminSupabaseClient } from './supabase/admin';
 
 type EmailRecipient = {
   email: string;
@@ -16,6 +17,38 @@ type NotificationEmailInput = {
   recipients: EmailRecipient[];
   subject: string;
 };
+
+type NotificationEmailLog = {
+  eventKey: string;
+  href: string;
+  recipientProfileId: string;
+  subject: string;
+  error: string;
+  attempts: number;
+};
+
+async function logEmailFailure(details: NotificationEmailLog) {
+  const admin = createAdminSupabaseClient();
+  if (!admin) {
+    return;
+  }
+
+  const { error: dbError } = await admin.from('notification_email_logs').insert({
+    recipient_profile_id: details.recipientProfileId,
+    event_key: details.eventKey,
+    href: details.href,
+    subject: details.subject,
+    error: details.error,
+    attempts: details.attempts,
+  });
+
+  if (dbError) {
+    console.error('Failed to log notification email failure.', {
+      dbError: dbError.message,
+      ...details,
+    });
+  }
+}
 
 function escapeHtml(value: string) {
   return value
@@ -44,33 +77,51 @@ export async function sendNotificationEmails(input: NotificationEmailInput) {
 
   const absoluteHref = new URL(input.href, getAppOrigin()).toString();
   const deliveries = input.recipients.map(async (recipient) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5_000);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5_000);
 
-    try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': `${input.idempotencyKey}/${recipient.profileId}`,
-        },
-        body: JSON.stringify({
-          from: env.NOTIFICATION_EMAIL_FROM!,
-          to: [recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email],
-          subject: input.subject,
-          html: buildEmailHtml(input.subject, input.bodyText, absoluteHref),
-          text: `${input.subject}\n\n${input.bodyText}\n\nOpen GlowHaul: ${absoluteHref}`,
-          reply_to: env.NOTIFICATION_EMAIL_REPLY_TO || undefined,
-        }),
-        signal: controller.signal,
-      });
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `${input.idempotencyKey}/${recipient.profileId}`,
+          },
+          body: JSON.stringify({
+            from: env.NOTIFICATION_EMAIL_FROM!,
+            to: [recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email],
+            subject: input.subject,
+            html: buildEmailHtml(input.subject, input.bodyText, absoluteHref),
+            text: `${input.subject}\n\n${input.bodyText}\n\nOpen GlowHaul: ${absoluteHref}`,
+            reply_to: env.NOTIFICATION_EMAIL_REPLY_TO || undefined,
+          }),
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        throw new Error(`Resend email failed (${response.status}): ${await response.text()}`);
+        if (!response.ok) {
+          throw new Error(`Resend email failed (${response.status}): ${await response.text()}`);
+        }
+
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (attempt === 3) {
+          await logEmailFailure({
+            eventKey: input.idempotencyKey,
+            href: input.href,
+            recipientProfileId: recipient.profileId,
+            subject: input.subject,
+            error: message,
+            attempts: attempt,
+          });
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+        }
+      } finally {
+        clearTimeout(timer);
       }
-    } finally {
-      clearTimeout(timer);
     }
   });
 
