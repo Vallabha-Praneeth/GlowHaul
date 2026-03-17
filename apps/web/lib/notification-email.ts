@@ -44,40 +44,49 @@ export async function sendNotificationEmails(input: NotificationEmailInput) {
 
   const absoluteHref = new URL(input.href, getAppOrigin()).toString();
   const deliveries = input.recipients.map(async (recipient) => {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': `${input.idempotencyKey}/${recipient.profileId}`,
-      },
-      body: JSON.stringify({
-        from: env.NOTIFICATION_EMAIL_FROM!,
-        to: [recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email],
-        subject: input.subject,
-        html: buildEmailHtml(input.subject, input.bodyText, absoluteHref),
-        text: `${input.subject}\n\n${input.bodyText}\n\nOpen GlowHaul: ${absoluteHref}`,
-        reply_to: env.NOTIFICATION_EMAIL_REPLY_TO || undefined,
-      }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
 
-    if (!response.ok) {
-      throw new Error(`Resend email failed (${response.status}): ${await response.text()}`);
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `${input.idempotencyKey}/${recipient.profileId}`,
+        },
+        body: JSON.stringify({
+          from: env.NOTIFICATION_EMAIL_FROM!,
+          to: [recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email],
+          subject: input.subject,
+          html: buildEmailHtml(input.subject, input.bodyText, absoluteHref),
+          text: `${input.subject}\n\n${input.bodyText}\n\nOpen GlowHaul: ${absoluteHref}`,
+          reply_to: env.NOTIFICATION_EMAIL_REPLY_TO || undefined,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Resend email failed (${response.status}): ${await response.text()}`);
+      }
+    } finally {
+      clearTimeout(timer);
     }
   });
 
-  const results = await Promise.allSettled(deliveries);
-  const failures = results.filter((result) => result.status === 'rejected');
+  void Promise.allSettled(deliveries).then((results) => {
+    const failures = results.filter((result) => result.status === 'rejected');
 
-  if (failures.length > 0) {
-    console.error('Notification email delivery failed.', {
-      failures: failures.map((result) =>
-        (result as PromiseRejectedResult).reason instanceof Error
-          ? (result as PromiseRejectedResult).reason.message
-          : String((result as PromiseRejectedResult).reason)
-      ),
-      idempotencyKey: input.idempotencyKey,
-      recipientCount: input.recipients.length,
-    });
-  }
+    if (failures.length > 0) {
+      console.error('Notification email delivery failed.', {
+        failures: failures.map((result) =>
+          (result as PromiseRejectedResult).reason instanceof Error
+            ? (result as PromiseRejectedResult).reason.message
+            : String((result as PromiseRejectedResult).reason)
+        ),
+        idempotencyKey: input.idempotencyKey,
+        recipientCount: input.recipients.length,
+      });
+    }
+  });
 }

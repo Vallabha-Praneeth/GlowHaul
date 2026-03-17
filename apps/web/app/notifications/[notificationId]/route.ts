@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '../../../lib/supabase/server';
 import type { Database } from '../../../../../packages/supabase/types/database';
 
 function getSafeTargetHref(href: string | null | undefined) {
-  if (!href || !href.startsWith('/')) {
+  if (!href || !href.startsWith('/') || href.startsWith('//')) {
     return '/operator';
   }
 

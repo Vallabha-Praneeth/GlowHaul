@@ -1,6 +1,7 @@
 import 'server-only';
 import type { AppRole } from './auth';
 import { formatOptionalDateTime, getFileName } from './formatters';
+import { isNotificationEmailConfigured } from './env';
 import { sendNotificationEmails } from './notification-email';
 import { createAdminSupabaseClient } from './supabase/admin';
 import { createServerSupabaseClient } from './supabase/server';
@@ -318,6 +319,29 @@ async function getRecipientProfiles(profileIds: string[]) {
   return (data ?? []) as RecipientProfile[];
 }
 
+async function maybeDeliverEmails(
+  recipientIds: string[],
+  emailInput: Omit<Parameters<typeof sendNotificationEmails>[0], 'recipients'>
+) {
+  if (!isNotificationEmailConfigured() || recipientIds.length === 0) {
+    return;
+  }
+
+  const recipients = await getRecipientProfiles(recipientIds);
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await sendNotificationEmails({
+    ...emailInput,
+    recipients: recipients.map((recipient) => ({
+      email: recipient.email,
+      name: recipient.full_name,
+      profileId: recipient.id,
+    })),
+  });
+}
+
 export async function getNotificationCenterData(profileId: string): Promise<NotificationCenterData> {
   const supabase = await createServerSupabaseClient();
   const [
@@ -428,16 +452,10 @@ export async function notifyPlannerOfferAccepted(input: {
     })
   );
 
-  const recipients = await getRecipientProfiles(recipientIds);
-  await sendNotificationEmails({
+  await maybeDeliverEmails(recipientIds, {
     bodyText: body,
     href: '/planner/search',
     idempotencyKey: `offer-accepted/${input.offerId}`,
-    recipients: recipients.map((recipient) => ({
-      email: recipient.email,
-      name: recipient.full_name,
-      profileId: recipient.id,
-    })),
     subject: `Offer accepted for ${input.campaignName}`,
   });
 }
@@ -496,16 +514,10 @@ export async function notifyOperatorRunIssueReported(input: {
     })
   );
 
-  const recipients = await getRecipientProfiles(recipientIds);
-  await sendNotificationEmails({
+  await maybeDeliverEmails(recipientIds, {
     bodyText: body,
     href: '/operator',
     idempotencyKey: `run-issue/${context.run.id}`,
-    recipients: recipients.map((recipient) => ({
-      email: recipient.email,
-      name: recipient.full_name,
-      profileId: recipient.id,
-    })),
     subject: `Driver issue reported for ${context.booking.campaign_name}`,
   });
 }
@@ -579,16 +591,10 @@ export async function notifyDriverProofReviewed(input: {
     })
   );
 
-  const recipients = await getRecipientProfiles([context.proof.driver_id]);
-  await sendNotificationEmails({
+  await maybeDeliverEmails([context.proof.driver_id], {
     bodyText: body,
     href: '/driver',
     idempotencyKey: `proof-reviewed/${context.proof.id}`,
-    recipients: recipients.map((recipient) => ({
-      email: recipient.email,
-      name: recipient.full_name,
-      profileId: recipient.id,
-    })),
     subject: `${title} for ${context.booking.campaign_name}`,
   });
 }
