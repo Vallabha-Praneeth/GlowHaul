@@ -1,6 +1,8 @@
 import 'server-only';
 import type { AppRole } from './auth';
 import { formatOptionalDateTime, getFileName } from './formatters';
+import { isNotificationEmailConfigured } from './env';
+import { sendNotificationEmails } from './notification-email';
 import { createAdminSupabaseClient } from './supabase/admin';
 import { createServerSupabaseClient } from './supabase/server';
 import type { Database } from '../../../packages/supabase/types/database';
@@ -16,8 +18,10 @@ type ProofAssetRow = Database['public']['Tables']['proof_assets']['Row'];
 type NotificationMetadata = Record<string, boolean | number | string | null>;
 type DispatchIntent = 'assign' | 'remove' | 'update' | 'cancel' | 'pause' | 'resolve';
 type DispatchIntentInput = DispatchIntent | 'save';
+type RecipientProfile = Pick<ProfileRow, 'email' | 'full_name' | 'id'>;
 
 export type NotificationCenterItem = {
+  actionHref: string;
   body: string;
   createdAtLabel: string;
   href: string;
@@ -288,6 +292,56 @@ function buildRecords(
   }));
 }
 
+async function getRecipientProfiles(profileIds: string[]) {
+  if (profileIds.length === 0) {
+    return [];
+  }
+
+  const admin = requireAdminClient('getRecipientProfiles', { count: profileIds.length });
+
+  if (!admin) {
+    return [];
+  }
+
+  const { data, error } = await admin
+    .from('profiles')
+    .select('id, email, full_name')
+    .in('id', profileIds);
+
+  if (error) {
+    console.error('Failed to load notification email recipients.', notificationErrorContext('getRecipientProfiles', {
+      count: profileIds.length,
+      error: error.message,
+    }));
+    return [];
+  }
+
+  return (data ?? []) as RecipientProfile[];
+}
+
+async function maybeDeliverEmails(
+  recipientIds: string[],
+  emailInput: Omit<Parameters<typeof sendNotificationEmails>[0], 'recipients'>
+) {
+  if (!isNotificationEmailConfigured() || recipientIds.length === 0) {
+    return;
+  }
+
+  const recipients = await getRecipientProfiles(recipientIds);
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await sendNotificationEmails({
+    ...emailInput,
+    recipients: recipients.map((recipient) => ({
+      email: recipient.email,
+      name: recipient.full_name,
+      profileId: recipient.id,
+    })),
+  });
+}
+
 export async function getNotificationCenterData(profileId: string): Promise<NotificationCenterData> {
   const supabase = await createServerSupabaseClient();
   const [
@@ -323,6 +377,7 @@ export async function getNotificationCenterData(profileId: string): Promise<Noti
   >;
   return {
     items: notifications.map((item) => ({
+      actionHref: `/notifications/${item.id}`,
       body: item.body,
       createdAtLabel: formatOptionalDateTime(item.created_at) ?? 'Recently',
       href: item.href,
@@ -385,16 +440,24 @@ export async function notifyPlannerOfferAccepted(input: {
   }
 
   const recipientIds = await getOrganizationRoleRecipientIds(data.planner_organization_id, 'planner');
+  const body = `${input.campaignName} was booked by the operator and is now on the dispatch board.`;
   await insertNotifications(
     buildRecords(recipientIds, {
       actor_profile_id: input.actorProfileId,
-      body: `${input.campaignName} was booked by the operator and is now on the dispatch board.`,
+      body,
       href: '/planner/search',
       kind: 'offer_accepted',
       offer_id: input.offerId,
       title: 'Offer accepted',
     })
   );
+
+  await maybeDeliverEmails(recipientIds, {
+    bodyText: body,
+    href: '/planner/search',
+    idempotencyKey: `offer-accepted/${input.offerId}`,
+    subject: `Offer accepted for ${input.campaignName}`,
+  });
 }
 
 export async function notifyPlannerCampaignCloseout(input: {
@@ -436,12 +499,13 @@ export async function notifyOperatorRunIssueReported(input: {
   }
 
   const recipientIds = await getOrganizationRoleRecipientIds(context.booking.operator_organization_id, 'operator');
+  const body = input.issueNote
+    ? `${context.booking.campaign_name} was paused with issue: ${input.issueNote}`
+    : `${context.booking.campaign_name} was paused because the driver reported an issue.`;
   await insertNotifications(
     buildRecords(recipientIds, {
       actor_profile_id: input.actorProfileId,
-      body: input.issueNote
-        ? `${context.booking.campaign_name} was paused with issue: ${input.issueNote}`
-        : `${context.booking.campaign_name} was paused because the driver reported an issue.`,
+      body,
       booking_id: context.booking.id,
       href: '/operator',
       kind: 'run_issue_reported',
@@ -449,6 +513,13 @@ export async function notifyOperatorRunIssueReported(input: {
       title: 'Driver reported an issue',
     })
   );
+
+  await maybeDeliverEmails(recipientIds, {
+    bodyText: body,
+    href: '/operator',
+    idempotencyKey: `run-issue/${context.run.id}`,
+    subject: `Driver issue reported for ${context.booking.campaign_name}`,
+  });
 }
 
 export async function notifyOperatorProofUploaded(input: {
@@ -499,13 +570,15 @@ export async function notifyDriverProofReviewed(input: {
     return;
   }
 
+  const body =
+    context.proof.status === 'approved'
+      ? `${context.booking.campaign_name} proof ${getFileName(context.proof.storage_path)} was approved and is ready for planner/share workflows.`
+      : `${context.booking.campaign_name} proof ${getFileName(context.proof.storage_path)} was rejected. Review the operator note and upload a replacement.`;
+  const title = context.proof.status === 'approved' ? 'Proof approved' : 'Proof rejected';
   await insertNotifications(
     buildRecords([context.proof.driver_id], {
       actor_profile_id: input.actorProfileId,
-      body:
-        context.proof.status === 'approved'
-          ? `${context.booking.campaign_name} proof ${getFileName(context.proof.storage_path)} was approved and is ready for planner/share workflows.`
-          : `${context.booking.campaign_name} proof ${getFileName(context.proof.storage_path)} was rejected. Review the operator note and upload a replacement.`,
+      body,
       booking_id: context.booking.id,
       href: '/driver',
       kind: 'proof_reviewed',
@@ -514,9 +587,16 @@ export async function notifyDriverProofReviewed(input: {
       },
       proof_asset_id: context.proof.id,
       run_id: context.run.id,
-      title: context.proof.status === 'approved' ? 'Proof approved' : 'Proof rejected',
+      title,
     })
   );
+
+  await maybeDeliverEmails([context.proof.driver_id], {
+    bodyText: body,
+    href: '/driver',
+    idempotencyKey: `proof-reviewed/${context.proof.id}`,
+    subject: `${title} for ${context.booking.campaign_name}`,
+  });
 }
 
 export async function notifyDriversDispatchUpdated(input: {

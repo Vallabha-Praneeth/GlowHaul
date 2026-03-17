@@ -1,4 +1,4 @@
-import { hasSupabaseCredentials, serverEnvSchema } from '@glowhaul/config';
+import { hasNotificationEmailConfig, hasSupabaseCredentials, serverEnvSchema } from '@glowhaul/config';
 
 const parsed = serverEnvSchema.parse({
   NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
@@ -7,6 +7,10 @@ const parsed = serverEnvSchema.parse({
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  EMAIL_NOTIFICATIONS_ENABLED: process.env.EMAIL_NOTIFICATIONS_ENABLED,
+  RESEND_API_KEY: process.env.RESEND_API_KEY,
+  NOTIFICATION_EMAIL_FROM: process.env.NOTIFICATION_EMAIL_FROM,
+  NOTIFICATION_EMAIL_REPLY_TO: process.env.NOTIFICATION_EMAIL_REPLY_TO,
   AUTH_PRIMARY_METHOD: process.env.AUTH_PRIMARY_METHOD,
   AUTH_PHONE_OTP_ENABLED: process.env.AUTH_PHONE_OTP_ENABLED,
   AUTH_PHONE_OTP_PLACEHOLDER: process.env.AUTH_PHONE_OTP_PLACEHOLDER,
@@ -25,4 +29,8 @@ export const env = parsed;
 
 export function isSupabaseConfigured() {
   return hasSupabaseCredentials(parsed);
+}
+
+export function isNotificationEmailConfigured() {
+  return hasNotificationEmailConfig(parsed);
 }
