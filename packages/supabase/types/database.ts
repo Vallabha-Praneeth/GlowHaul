@@ -131,6 +131,47 @@ export type Database = {
           },
         ]
       }
+      notification_email_logs: {
+        Row: {
+          attempts: number
+          created_at: string
+          error: string
+          event_key: string
+          href: string
+          id: string
+          recipient_profile_id: string
+          subject: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error: string
+          event_key: string
+          href: string
+          id?: string
+          recipient_profile_id: string
+          subject: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error?: string
+          event_key?: string
+          href?: string
+          id?: string
+          recipient_profile_id?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_email_logs_recipient_profile_id_fkey"
+            columns: ["recipient_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_recap_shares: {
         Row: {
           booking_id: string
@@ -1498,4 +1539,3 @@ export const Constants = {
     },
   },
 } as const
-
